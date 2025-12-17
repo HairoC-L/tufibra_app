@@ -1,0 +1,281 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model cliente {
+  cli_id         String     @id @db.Char(8)
+  cli_nombre     String?    @db.VarChar(250)
+  cli_apellido   String?    @db.VarChar(250)
+  cli_tipo       String     @default("") @db.VarChar(50)
+  cli_razonsoci  String?    @db.VarChar(250)
+  cli_dni        String?    @db.Char(8)
+  cli_ruc        String?    @db.Char(20)
+  cli_direccion  String     @db.VarChar(250)
+  cli_coordenada String     @db.VarChar(250)
+  cli_cel        String     @db.Char(15)
+  cli_estado     String     @default("ACTIVO") @db.VarChar(45)
+  contrato       contrato[]
+}
+
+model orden_trabajo {
+  ord_id                 BigInt           @id @default(autoincrement())
+  ord_descripcion        String?          @db.VarChar(500)
+  ord_fecha_creacion     DateTime?        @default(dbgenerated("(now())")) @db.DateTime(0)
+  ord_fecha_asignacion   DateTime?        @db.DateTime(0)
+  ord_fecha_finalizacion DateTime?        @db.DateTime(0)
+  ord_estado             Int?             @db.SmallInt
+  ord_prioridad          String?          @db.VarChar(45)
+  tec_id                 Int
+  per_id                 Int
+  tip_id                 Int
+  num_con                String?          @db.Char(10)
+  contrato               contrato?        @relation(fields: [num_con], references: [num_con], onDelete: NoAction, onUpdate: NoAction, map: "FK_orden_trabajo_contrato")
+  personal_oficina       personal_oficina @relation(fields: [per_id], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_orden_trabajo_personal_oficina")
+  tecnico                tecnico          @relation(fields: [tec_id], references: [tec_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_orden_trabajo_tecnico")
+  tipo_trabajo           tipo_trabajo     @relation(fields: [tip_id], references: [tip_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tip_id_trabajo")
+
+  @@index([per_id], map: "fk_orden_trabajo_personal_oficina1_idx")
+  @@index([tec_id], map: "fk_orden_trabajo_tecnico1_idx")
+  @@index([tip_id], map: "fk_orden_trabajo_tipo_trabajo1_idx")
+  @@index([num_con], map: "FK_orden_trabajo_contrato")
+}
+
+model personal_oficina {
+  per_id               Int                    @unique(map: "per_id") @default(autoincrement())
+  per_estado           String                 @default("") @db.VarChar(100)
+  usuario_usu_id       Int
+  comprobante_pago     comprobante_pago[]
+  det_oficina_personal det_oficina_personal[]
+  orden_trabajo        orden_trabajo[]
+  usuario              usuario                @relation(fields: [usuario_usu_id], references: [usu_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_personal_oficina_usuario")
+
+  @@id([per_id, usuario_usu_id])
+  @@index([usuario_usu_id], map: "fk_personal_oficina_usuario1_idx")
+}
+
+model tecnico {
+  tec_id              Int                @unique(map: "tec_id") @default(autoincrement())
+  tec_estado          String             @default("") @db.VarChar(100)
+  tec_id_especialidad Int?
+  usuario_usu_id      Int
+  contrato            contrato[]
+  det_sede_tecnico    det_sede_tecnico[]
+  orden_trabajo       orden_trabajo[]
+  especialidad        especialidad?      @relation(fields: [tec_id_especialidad], references: [esp_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_tecnico_especialidad")
+  usuario             usuario            @relation(fields: [usuario_usu_id], references: [usu_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_tecnico_usuario")
+
+  @@id([tec_id, usuario_usu_id])
+  @@index([usuario_usu_id], map: "fk_tecnico_usuario_idx")
+  @@index([tec_id_especialidad], map: "FK_tecnico_especialidad")
+}
+
+model tipo_trabajo {
+  tip_id        Int             @id @default(autoincrement())
+  tip_nombre    String?         @db.VarChar(250)
+  orden_trabajo orden_trabajo[]
+}
+
+model usuario {
+  usu_id            Int                 @id @default(autoincrement())
+  usu_nombre        String?             @db.VarChar(250)
+  usu_dni           String?             @db.Char(8)
+  usu_correo        String?             @db.VarChar(100)
+  usu_cel           String?             @db.VarChar(20)
+  usu_usuario       String?             @db.VarChar(100)
+  usu_contrasena    String?             @db.VarChar(300)
+  usu_rol           String?             @db.VarChar(45)
+  usu_fecha         DateTime?           @db.Date
+  usu_estado        Int?                @db.SmallInt
+  contrato          contrato[]
+  historial_cambios historial_cambios[]
+  personal_oficina  personal_oficina[]
+  tecnico           tecnico[]
+}
+
+model especialidad {
+  esp_id      Int       @id @default(autoincrement())
+  esp_nombre  String    @db.VarChar(100)
+  esp_descrip String    @db.VarChar(250)
+  tecnico     tecnico[]
+}
+
+model det_oficina_personal {
+  id_det           Int               @id
+  id_oficina       Int?
+  id_personal      Int?
+  fecha            DateTime?         @db.Timestamp(0)
+  oficina          oficina?          @relation(fields: [id_oficina], references: [id_oficina], onDelete: NoAction, onUpdate: NoAction, map: "FK__oficina")
+  personal_oficina personal_oficina? @relation(fields: [id_personal], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "FK__personal_oficina")
+
+  @@index([id_oficina], map: "FK__oficina")
+  @@index([id_personal], map: "FK__personal_oficina")
+}
+
+model det_sede_tecnico {
+  id_det     Int       @id
+  id_tecnico Int?
+  id_sede    Int?
+  fecha      DateTime? @db.Timestamp(0)
+  sede       sede?     @relation(fields: [id_sede], references: [id_sede], onDelete: NoAction, onUpdate: NoAction, map: "FK__sedet")
+  tecnico    tecnico?  @relation(fields: [id_tecnico], references: [tec_id], onDelete: NoAction, onUpdate: NoAction, map: "FK__tecnico")
+
+  @@index([id_sede], map: "FK__sedet")
+  @@index([id_tecnico], map: "FK__tecnico")
+}
+
+model oficina {
+  id_oficina           Int                    @id @default(autoincrement())
+  nombre_oficina       String?                @db.VarChar(250)
+  direccion_oficina    String?                @db.VarChar(250)
+  id_sede              Int
+  det_oficina_personal det_oficina_personal[]
+  sede                 sede                   @relation(fields: [id_sede], references: [id_sede], onDelete: NoAction, onUpdate: NoAction, map: "FK__sede")
+
+  @@index([id_sede], map: "FK__sede")
+}
+
+model sede {
+  id_sede          Int                @id @default(autoincrement())
+  nombre_sede      String?            @db.VarChar(300)
+  det_sede_tecnico det_sede_tecnico[]
+  oficina          oficina[]
+}
+
+model servicio {
+  serv_id     Int        @id @default(autoincrement())
+  serv_nombre String?    @db.VarChar(250)
+  serv_precio Decimal    @db.Decimal(20, 6)
+  serv_tipo   String?    @db.VarChar(150)
+  contrato    contrato[]
+  deuda       deuda[]
+}
+
+model contrato {
+  num_con             String             @id @db.Char(10)
+  id_cli              String?            @db.Char(8)
+  id_serv             Int?
+  fecha_registro      DateTime?          @db.Date
+  fecha_inicio        DateTime?          @db.Date
+  fecha_fin           DateTime?          @db.Date
+  estado              Int?
+  id_user             Int?
+  tec_id              Int?
+  id_caja             Int?
+  id_tipo_comprobante Int?
+  comprobante_pago    comprobante_pago[]
+  caja                caja?              @relation(fields: [id_caja], references: [id_caja], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_caja")
+  cliente             cliente?           @relation(fields: [id_cli], references: [cli_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_cliente")
+  servicio            servicio?          @relation(fields: [id_serv], references: [serv_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_servicio")
+  tecnico             tecnico?           @relation(fields: [tec_id], references: [tec_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_tecnico")
+  tipo_comprobante    tipo_comprobante?  @relation(fields: [id_tipo_comprobante], references: [id_tipo], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_tipo_comprobante")
+  usuario             usuario?           @relation(fields: [id_user], references: [usu_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_contrato_usuario")
+  deuda               deuda[]
+  orden_trabajo       orden_trabajo[]
+
+  @@index([id_cli], map: "FK_contrato_cliente")
+  @@index([id_serv], map: "FK_contrato_servicio")
+  @@index([id_user], map: "FK_contrato_usuario")
+  @@index([tec_id], map: "FK_contrato_tecnico")
+  @@index([id_caja], map: "FK_contrato_caja")
+  @@index([id_tipo_comprobante], map: "FK_contrato_tipo_comprobante")
+}
+
+model caja {
+  id_caja     Int        @id @default(autoincrement())
+  nombre      String?    @db.VarChar(250)
+  descripcion String?    @db.VarChar(250)
+  coordenada  String?    @db.VarChar(100)
+  estado      Int?       @default(1)
+  id_nodo     Int?
+  nodo        nodo?      @relation(fields: [id_nodo], references: [id_nodo], onDelete: NoAction, onUpdate: NoAction, map: "FK__nodo")
+  contrato    contrato[]
+
+  @@index([id_nodo], map: "FK__nodo")
+}
+
+model nodo {
+  id_nodo     Int     @id @default(autoincrement())
+  nombre      String? @db.VarChar(250)
+  descripcion String? @db.VarChar(250)
+  coordenada  String? @db.VarChar(100)
+  estado      Int?    @default(1)
+  caja        caja[]
+}
+
+model tipo_comprobante {
+  id_tipo          Int                @id @default(autoincrement())
+  tipo             String?            @db.VarChar(50)
+  comprobante_pago comprobante_pago[]
+  contrato         contrato[]
+}
+
+model comprobante_pago {
+  cod_comprobante  String            @id @db.Char(15)
+  id_tipo_compro   Int?
+  serie            String?           @db.Char(4)
+  correlativo      Int?
+  fecha_emision    DateTime          @default(dbgenerated("(now())")) @db.Timestamp(0)
+  monto_total      Decimal?          @db.Decimal(10, 6)
+  medio_pago       String?           @db.VarChar(50)
+  estado           String?           @db.VarChar(50)
+  num_con          String?           @db.Char(10)
+  id_per_oficina   Int?
+  obs              String?           @db.VarChar(250)
+  contrato         contrato?         @relation(fields: [num_con], references: [num_con], onDelete: NoAction, onUpdate: NoAction, map: "FK_comprobante_pago_contrato")
+  personal_oficina personal_oficina? @relation(fields: [id_per_oficina], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_comprobante_pago_personal_oficina")
+  tipo_comprobante tipo_comprobante? @relation(fields: [id_tipo_compro], references: [id_tipo], onDelete: NoAction, onUpdate: NoAction, map: "FK_comprobante_pago_tipo_comprobante")
+  detalle_pago     detalle_pago[]
+
+  @@index([id_tipo_compro], map: "FK_comprobante_pago_tipo_comprobante")
+  @@index([num_con], map: "FK_comprobante_pago_contrato")
+  @@index([id_per_oficina], map: "FK_comprobante_pago_personal_oficina")
+}
+
+model detalle_pago {
+  id_detalle       Int               @id @default(autoincrement())
+  cod_comprobante  String?           @db.Char(15)
+  descripcion      String?           @db.VarChar(50)
+  ano_mes          String?           @db.Char(10)
+  monto            Decimal?          @db.Decimal(10, 1)
+  comprobante_pago comprobante_pago? @relation(fields: [cod_comprobante], references: [cod_comprobante], onDelete: NoAction, onUpdate: NoAction, map: "FK_detalle_pago_comprobante_pago")
+
+  @@index([cod_comprobante], map: "FK_detalle_pago_comprobante_pago")
+}
+
+model deuda {
+  id_deuda        Int       @id @default(autoincrement())
+  ano_mes         String?   @db.Char(50)
+  descripcion     String?   @db.VarChar(150)
+  monto           Decimal?  @db.Decimal(10, 2)
+  saldo_pendiente Decimal?  @db.Decimal(10, 2)
+  fecha_creacion  DateTime? @default(dbgenerated("(now())")) @db.Date
+  estado          String?   @db.VarChar(50)
+  id_servicio     Int?
+  num_con         String    @db.Char(10)
+  obs             String    @default("") @db.VarChar(250)
+  contrato        contrato  @relation(fields: [num_con], references: [num_con], onDelete: NoAction, onUpdate: NoAction, map: "FK_deuda_contrato")
+  servicio        servicio? @relation(fields: [id_servicio], references: [serv_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_deuda_servicio")
+
+  @@index([num_con], map: "FK_deuda_contrato")
+  @@index([id_servicio], map: "FK_deuda_servicio")
+}
+
+model historial_cambios {
+  id          Int       @id @default(autoincrement())
+  tabla       String?   @db.VarChar(50)
+  id_cod      String?   @db.VarChar(50)
+  accion      String?   @db.VarChar(100)
+  descripcion String?   @db.VarChar(250)
+  detalle     String?   @db.VarChar(500)
+  fecha       DateTime? @default(dbgenerated("(now())")) @db.DateTime(0)
+  id_usuario  Int?
+  usuario     usuario?  @relation(fields: [id_usuario], references: [usu_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_historial_cambios_usuario")
+
+  @@index([id_usuario], map: "FK_historial_cambios_usuario")
+}
