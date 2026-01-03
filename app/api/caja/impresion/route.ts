@@ -57,6 +57,8 @@ export async function GET(request: Request) {
       detalles_pago: comprobante.detalle_pago.map((detalle) => ({
         descripcion: detalle.descripcion,
         monto: detalle.monto,
+        descuento: detalle.descuento,
+        mot_descuento: detalle.mot_descuento,
       })),
       tipo_comprobante: comprobante.tipo_comprobante?.tipo,
       medio_pago: comprobante.medio_pago,

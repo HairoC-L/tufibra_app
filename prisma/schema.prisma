@@ -243,6 +243,8 @@ model detalle_pago {
   descripcion      String?           @db.VarChar(50)
   ano_mes          String?           @db.Char(10)
   monto            Decimal?          @db.Decimal(10, 1)
+  descuento        Decimal?          @db.Decimal(10, 1)
+  mot_descuento    String?           @db.VarChar(100)
   comprobante_pago comprobante_pago? @relation(fields: [cod_comprobante], references: [cod_comprobante], onDelete: NoAction, onUpdate: NoAction, map: "FK_detalle_pago_comprobante_pago")
 
   @@index([cod_comprobante], map: "FK_detalle_pago_comprobante_pago")

@@ -60,36 +60,41 @@ export async function POST(req: NextRequest) {
           descripcion: item.descripcion,
           ano_mes: item.ano_mes,
           monto: parseFloat(item.monto),
+          descuento: item.descuento ? parseFloat(item.descuento) : 0,
+          mot_descuento: item.mot_descuento || "",
         },
       });
     }
     for (const item of detallePago) {
       // Obtener la deuda actual
       const deuda = await prisma.deuda.findUnique({
-        where: { id_deuda: item.id_deuda },
+        where: { id_deuda: parseInt(item.id_deuda) },
       });
 
       if (!deuda) continue;
 
       // Convertir a number por seguridad (por si vienen como string)
       const montoPagado = Number(item.monto);
+      const descuentoAplicado = Number(item.descuento || 0);
       const saldoPendiente = Number(deuda.saldo_pendiente);
 
+      const totalReduccion = montoPagado + descuentoAplicado;
+
       // Comparar
-      if (montoPagado == saldoPendiente) {
-        // Pago total → salda la deuda
+      // Usamos una pequeña tolerancia para errores de punto flotante
+      if (totalReduccion >= saldoPendiente - 0.01) {
+        // Pago total (o con descuento que cubre el total)
         await prisma.deuda.update({
-          where: { id_deuda: item.id_deuda },
+          where: { id_deuda: parseInt(item.id_deuda) },
           data: {
             saldo_pendiente: 0,
             estado: "PAGADO",
           },
         });
-      } else if (montoPagado < saldoPendiente) {
-
-        const nuevoSaldo = Number(saldoPendiente - montoPagado);
+      } else {
+        const nuevoSaldo = Number(saldoPendiente - totalReduccion);
         await prisma.deuda.update({
-          where: { id_deuda: item.id_deuda },
+          where: { id_deuda: parseInt(item.id_deuda) },
           data: {
             saldo_pendiente: nuevoSaldo,
             estado: "RESTANTE",

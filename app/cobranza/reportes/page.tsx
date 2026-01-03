@@ -22,53 +22,53 @@ export default function ReportsPage() {
   const [detalleAbierto, setDetalleAbierto] = useState(false)
   const [detalleReporte, setDetalleReporte] = useState<any[]>([])
 
-const aplicarRango = (rango: "hoy" | "ayer" | "7dias" | "mes") => {
-  setModoPersonalizado(false)
-  setRangoActivo(rango)
+  const aplicarRango = (rango: "hoy" | "ayer" | "7dias" | "mes") => {
+    setModoPersonalizado(false)
+    setRangoActivo(rango)
 
-  const hoy = new Date()
-  let nuevoDesde = today
-  let nuevoHasta = today
+    const hoy = new Date()
+    let nuevoDesde = today
+    let nuevoHasta = today
 
-  if (rango === "hoy") {
-    nuevoDesde = format(hoy, "yyyy-MM-dd")
-    nuevoHasta = nuevoDesde
-  } else if (rango === "ayer") {
-    nuevoDesde = format(subDays(hoy, 1), "yyyy-MM-dd")
-    nuevoHasta = nuevoDesde
-  } else if (rango === "7dias") {
-    nuevoDesde = format(subDays(hoy, 6), "yyyy-MM-dd")
-    nuevoHasta = format(hoy, "yyyy-MM-dd")
-  } else if (rango === "mes") {
-    nuevoDesde = format(startOfMonth(hoy), "yyyy-MM-dd")
-    nuevoHasta = format(hoy, "yyyy-MM-dd")
+    if (rango === "hoy") {
+      nuevoDesde = format(hoy, "yyyy-MM-dd")
+      nuevoHasta = nuevoDesde
+    } else if (rango === "ayer") {
+      nuevoDesde = format(subDays(hoy, 1), "yyyy-MM-dd")
+      nuevoHasta = nuevoDesde
+    } else if (rango === "7dias") {
+      nuevoDesde = format(subDays(hoy, 6), "yyyy-MM-dd")
+      nuevoHasta = format(hoy, "yyyy-MM-dd")
+    } else if (rango === "mes") {
+      nuevoDesde = format(startOfMonth(hoy), "yyyy-MM-dd")
+      nuevoHasta = format(hoy, "yyyy-MM-dd")
+    }
+
+    setDesde(nuevoDesde)
+    setHasta(nuevoHasta)
+
+    obtenerReporte(nuevoDesde, nuevoHasta) // Usar valores actualizados directamente
   }
 
-  setDesde(nuevoDesde)
-  setHasta(nuevoHasta)
+  const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
+    setCargando(true)
+    setReporte(null)
 
-  obtenerReporte(nuevoDesde, nuevoHasta) // Usar valores actualizados directamente
-}
+    try {
+      const res = await fetch("/api/caja/reportexfecha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde: desdeParam, hasta: hastaParam }),
+      })
 
-const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
-  setCargando(true)
-  setReporte(null)
-
-  try {
-    const res = await fetch("/api/caja/reportexfecha", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ desde: desdeParam, hasta: hastaParam }),
-    })
-
-    const data = await res.json()
-    setReporte(data)
-  } catch (err) {
-    console.error("Error al obtener reporte:", err)
-  } finally {
-    setCargando(false)
+      const data = await res.json()
+      setReporte(data)
+    } catch (err) {
+      console.error("Error al obtener reporte:", err)
+    } finally {
+      setCargando(false)
+    }
   }
-}
 
 
   const abrirDetalle = async () => {
@@ -111,11 +111,10 @@ const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
                       key={r}
                       variant="secondary"
                       onClick={() => aplicarRango(r as any)}
-                      className={`text-gray-200 ${
-                        rangoActivo === r
-                          ? "bg-blue-600 hover:bg-blue-700"
-                          : "bg-gray-700 hover:bg-gray-600"
-                      }`}
+                      className={`text-gray-200 ${rangoActivo === r
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-gray-700 hover:bg-gray-600"
+                        }`}
                     >
                       {r === "hoy" && "Hoy"}
                       {r === "ayer" && "Ayer"}
@@ -130,11 +129,10 @@ const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
                       setModoPersonalizado(true)
                       setRangoActivo(null)
                     }}
-                    className={`text-gray-200 ${
-                      modoPersonalizado
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-gray-700 hover:bg-gray-600"
-                    }`}
+                    className={`text-gray-200 ${modoPersonalizado
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-gray-700 hover:bg-gray-600"
+                      }`}
                   >
                     Personalizado
                   </Button>
@@ -160,7 +158,7 @@ const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
                         onChange={(e) => setHasta(e.target.value)}
                       />
                     </div>
-                    <Button  onClick={() => obtenerReporte()} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={() => obtenerReporte()} className="bg-blue-600 hover:bg-blue-700">
                       Generar
                     </Button>
                   </div>
@@ -179,20 +177,21 @@ const obtenerReporte = async (desdeParam = desde, hastaParam = hasta) => {
                     <div>
                       <h3 className="font-bold text-lg mb-2">Resumen</h3>
                       <p><strong>Pagos:</strong> {reporte.cantidad_pagos}</p>
-                      <p><strong>Total:</strong> S/ {Number(reporte.monto_total).toFixed(2)}</p>
+                      <p><strong>Total:</strong> <span className="text-green-400">S/ {Number(reporte.monto_total).toFixed(2)}</span></p>
+                      <p><strong>Descuentos:</strong> <span className="text-red-400">S/ {Number(reporte.total_descuentos || 0).toFixed(2)}</span></p>
                     </div>
 
                     <div>
                       <h3 className="font-bold text-lg mb-2">Comprobantes</h3>
-                      <p>Boletas: {reporte.boletas}</p>
-                      <p>Facturas: {reporte.facturas}</p>
-                      <p>Recibos: {reporte.recibos}</p>
+                      <p>Boletas: {reporte.boletas} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_boletas || 0).toFixed(2)}</span></p>
+                      <p>Facturas: {reporte.facturas} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_facturas || 0).toFixed(2)}</span></p>
+                      <p>Recibos: {reporte.recibos} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_recibos || 0).toFixed(2)}</span></p>
                     </div>
                     <div>
                       <h3 className="font-bold text-lg mb-2">Medios de Pago</h3>
-                      <p>Efectivo: {reporte.efectivo}</p>
-                      <p>Yape: {reporte.yape}</p>
-                      <p>Transferencia: {reporte.transferencia}</p>
+                      <p>Efectivo: {reporte.efectivo} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_efectivo || 0).toFixed(2)}</span></p>
+                      <p>Yape: {reporte.yape} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_yape || 0).toFixed(2)}</span></p>
+                      <p>Transferencia: {reporte.transferencia} <span className="text-gray-400 text-xs">→ S/ {Number(reporte.monto_transferencia || 0).toFixed(2)}</span></p>
                     </div>
 
                     <div className="col-span-full">

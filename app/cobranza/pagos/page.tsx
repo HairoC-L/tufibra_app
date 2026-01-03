@@ -177,6 +177,8 @@ interface SelectedDeudas {
   deu: deuda
   amountToPay: number
   selected: boolean
+  discount?: number
+  discountReason?: string
 }
 
 export default function ClientsPage() {
@@ -186,6 +188,12 @@ export default function ClientsPage() {
   const [filterStatus, setFilterStatus] = useState("all")
   //const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [openModal, setOpenModal] = useState(false);
+
+  // Discount Modal State
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
+  const [activeDebtIndex, setActiveDebtIndex] = useState<number | null>(null)
+  const [discountAmount, setDiscountAmount] = useState("")
+  const [discountReason, setDiscountReason] = useState("")
 
   const [deudas, setDeudas] = useState<deuda[]>([])
 
@@ -374,8 +382,44 @@ export default function ClientsPage() {
   const handleMontoChange = (index: number, amount: number) => {
     const updated = [...selectedDeudas]
     const maxAmount = updated[index].deu.saldo_pendiente
-    updated[index].amountToPay = Math.min(Math.max(0, amount), maxAmount)
+    // Ensure amount + discount doesn't exceed total debt? 
+    // Usually user pays (Debt - Discount). 
+    // So AmountToPay should be (Debt - Discount).
+    // If they change amount manually, it's fine, but let's just update the value.
+    updated[index].amountToPay = amount
     setSelectedDeudas(updated)
+  }
+
+  const openDiscountModal = (index: number) => {
+    setActiveDebtIndex(index)
+    // If there is already a discount, populate it
+    const currentDiscount = selectedDeudas[index].discount || 0
+    const currentReason = selectedDeudas[index].discountReason || ""
+    setDiscountAmount(currentDiscount > 0 ? currentDiscount.toString() : "")
+    setDiscountReason(currentReason)
+    setIsDiscountModalOpen(true)
+  }
+
+  const handleApplyDiscount = () => {
+    if (activeDebtIndex !== null) {
+      const updated = [...selectedDeudas]
+      const discountVal = parseFloat(discountAmount) || 0
+
+      updated[activeDebtIndex].discount = discountVal
+      updated[activeDebtIndex].discountReason = discountReason
+
+      // Auto-adjust amount to pay: (Saldo - Discount)
+      const saldo = updated[activeDebtIndex].deu.saldo_pendiente
+      const newAmountToPay = Math.max(0, saldo - discountVal)
+
+      updated[activeDebtIndex].amountToPay = newAmountToPay
+
+      setSelectedDeudas(updated)
+      setIsDiscountModalOpen(false)
+      setActiveDebtIndex(null)
+      setDiscountAmount("")
+      setDiscountReason("")
+    }
   }
 
   const getSelectedDeudasTotal = () => {
@@ -406,7 +450,7 @@ export default function ClientsPage() {
 
   async function processPayment(
     num_con: string,
-    selectedDeudass: { id_deuda: string; amount: number; deuda: deuda }[],
+    selectedDeudass: { id_deuda: string; amount: number; deuda: deuda; descuento?: number; mot_descuento?: string }[],
     paymentMethod: "efectivo" | "yape" | "transferencia",
     receiptType: "boleta" | "factura" | "recibo",
     id_usuario: string,
@@ -441,6 +485,8 @@ export default function ClientsPage() {
           descripcion: item.deuda.descripcion || "",
           ano_mes: item.deuda.ano_mes || "",
           monto: Number(item.amount),
+          descuento: item.descuento || 0,
+          mot_descuento: item.mot_descuento || "",
         }))
       );
 
@@ -465,6 +511,8 @@ export default function ClientsPage() {
             descripcion: item.descripcion,
             ano_mes: item.ano_mes,
             monto: item.monto,
+            descuento: item.descuento || 0,
+            mot_descuento: item.mot_descuento || "",
           })),
         }),
         headers: { "Content-Type": "application/json" },
@@ -522,7 +570,9 @@ export default function ClientsPage() {
         .map((item) => ({
           id_deuda: item.deu.id_deuda.toString(),
           amount: item.amountToPay,
-          deuda: item.deu
+          deuda: item.deu,
+          descuento: item.discount,
+          mot_descuento: item.discountReason
         }))
 
       const result = await processPayment(
@@ -703,10 +753,13 @@ export default function ClientsPage() {
                 </tr>
               </thead>
               <tbody>
-                ${detalles_pago.map((item: { descripcion: string; monto: number }) => `
+                ${detalles_pago.map((item: { descripcion: string; monto: number; descuento?: number }) => `
                   <tr>
                     <td>01</td>
-                    <td>${item.descripcion}</td>
+                    <td>
+                      ${item.descripcion}
+                      ${item.descuento && Number(item.descuento) > 0 ? `<br/><span style="font-size: 11px; font-style: italic;">(Desc: S/ ${Number(item.descuento).toFixed(2)})</span>` : ''}
+                    </td>
                     <td style="text-align: right;">S/. ${Number(item.monto).toFixed(2)}</td>
                   </tr>
                 `).join('')}
@@ -882,7 +935,7 @@ export default function ClientsPage() {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Debts Selection */}
       <Card className="rounded-md border border-gray-700 bg-gray-800/30">
         <CardHeader>
@@ -948,6 +1001,28 @@ export default function ClientsPage() {
                           />
                         </div>
                       </div>
+
+                      {item.selected && (
+                        <div className="mt-2 flex items-center justify-between">
+                          <div className="text-xs text-gray-400">
+                            {item.discount && item.discount > 0 ? (
+                              <span className="text-green-400">
+                                Descuento aplicado: S/ {item.discount.toFixed(2)} ({item.discountReason})
+                              </span>
+                            ) : (
+                              <span>Sin descuento</span>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700"
+                            onClick={() => openDiscountModal(index)}
+                          >
+                            {item.discount && item.discount > 0 ? "Modificar Descuento" : "Agregar Descuento"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1123,11 +1198,11 @@ export default function ClientsPage() {
                 <Label className="text-sm text-gray-200">Cliente</Label>
                 {selectedClient?.cli_tipo === "NATURAL" ? (
                   <>
-                    <p className="font-medium text-gray-400">{selectedClient?.cli_nombre}{selectedClient?.cli_apellido}</p>
+                    <p className="font-medium text-gray-400">{selectedClient?.cli_nombre}{" "}{selectedClient?.cli_apellido}</p>
                   </>
                 ) : (
                   <>
-                    <p className="font-medium text-gray-400">{selectedClient?.cli_razonsoci}{selectedClient?.cli_apellido}</p>
+                    <p className="font-medium text-gray-400">{selectedClient?.cli_razonsoci}</p>
                   </>
                 )
                 }
@@ -1242,12 +1317,57 @@ export default function ClientsPage() {
           </div>
         </div>
         {showAddDeuda && (
-        <AddDeudaModal
-          num_con={selectedClient?.num_con!}
-          onClose={() => setShowAddDeuda(false)}
-          onAdded={() => fetchDeudas()}
-        />
-      )}
+          <AddDeudaModal
+            num_con={selectedClient?.num_con!}
+            onClose={() => setShowAddDeuda(false)}
+            onAdded={() => fetchDeudas()}
+          />
+        )}
+
+        {/* Discount Modal */}
+        {isDiscountModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-xl w-full max-w-md">
+              <h3 className="text-lg font-bold text-white mb-4">Agregar Descuento</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-gray-200">Monto del Descuento</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    className="bg-gray-700 border-gray-600 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-200">Motivo</Label>
+                  <Input
+                    placeholder="Razón del descuento..."
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                    className="bg-gray-700 border-gray-600 text-white mt-1"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsDiscountModalOpen(false)}
+                    className="text-gray-300 hover:text-white"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleApplyDiscount}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Aplicar Descuento
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </SidebarInset>
     </SidebarProvider>
   )

@@ -35,43 +35,82 @@ export async function POST(req: Request) {
                         tipo: true,
                     },
                 },
+                detalle_pago: {
+                    select: {
+                        descuento: true,
+                    },
+                },
             },
         });
 
         // Inicializar resumen
         let cantidad_pagos = pagos.length;
         let monto_total = 0;
+        let total_descuentos = 0;
+
         let boletas = 0;
+        let monto_boletas = 0;
         let facturas = 0;
+        let monto_facturas = 0;
         let recibos = 0;
+        let monto_recibos = 0;
 
         let efectivo = 0;
+        let monto_efectivo = 0;
         let yape = 0;
+        let monto_yape = 0;
         let transferencia = 0;
+        let monto_transferencia = 0;
 
         for (const pago of pagos) {
-            monto_total += Number(pago.monto_total ?? 0);
+            const monto = Number(pago.monto_total ?? 0);
+            monto_total += monto;
+
+            // Sumar descuentos
+            const descuentosPago = pago.detalle_pago?.reduce((acc, det) => acc + Number(det.descuento || 0), 0) || 0;
+            total_descuentos += descuentosPago;
 
             const tipo = pago.tipo_comprobante?.tipo?.toLowerCase() || "";
-            if (tipo.includes("boleta")) boletas++;
-            else if (tipo.includes("factura")) facturas++;
-            else if (tipo.includes("recibo")) recibos++;
+            if (tipo.includes("boleta")) {
+                boletas++;
+                monto_boletas += monto;
+            } else if (tipo.includes("factura")) {
+                facturas++;
+                monto_facturas += monto;
+            } else if (tipo.includes("recibo")) {
+                recibos++;
+                monto_recibos += monto;
+            }
 
             const medio = pago.medio_pago?.toLowerCase() || "";
-            if (medio.includes("efectivo")) efectivo++;
-            else if (medio.includes("yape")) yape++;
-            else if (medio.includes("transferencia")) transferencia++;
+            if (medio.includes("efectivo")) {
+                efectivo++;
+                monto_efectivo += monto;
+            } else if (medio.includes("yape")) {
+                yape++;
+                monto_yape += monto;
+            } else if (medio.includes("transferencia")) {
+                transferencia++;
+                monto_transferencia += monto;
+            }
         }
 
         return NextResponse.json({
             cantidad_pagos,
             monto_total,
+            total_descuentos,
             boletas,
+            monto_boletas,
             facturas,
+            monto_facturas,
             recibos,
+            monto_recibos,
             efectivo,
+            monto_efectivo,
             yape,
+            monto_yape,
             transferencia,
+            monto_transferencia,
         });
     } catch (error) {
         console.error("Error al generar el reporte:", error);

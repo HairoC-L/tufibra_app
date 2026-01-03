@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma"
 export async function GET() {
   try {
     const pagos = await prisma.comprobante_pago.findMany({
-        include:{
-            tipo_comprobante:{}
-        }
+      include: {
+        tipo_comprobante: {},
+        detalle_pago: true
+      }
     })
 
     return NextResponse.json(pagos)

@@ -142,7 +142,14 @@ interface pagos {
   num_con: string
   id_per_oficina: string
   duedas_ids: string[]
+  detalle_pago: {
+    descripcion: string
+    monto: number
+    descuento: number
+  }[]
 }
+
+
 
 
 type PaymentStep = "search" | "select-debts" | "payment-details" | "confirmation"
@@ -218,7 +225,7 @@ export default function ClientsPage() {
     fetchClients();
     fetchPagos();
   }, []);
-  
+
   const searchParams = useSearchParams()
   const preselectedCustomerId = searchParams.get("customer")
   const receiptRef = useRef<HTMLDivElement>(null)
@@ -391,10 +398,13 @@ export default function ClientsPage() {
                 </tr>
               </thead>
               <tbody>
-                ${detalles_pago.map((item: { descripcion: string; monto: number }) => `
+                ${detalles_pago.map((item: { descripcion: string; monto: number; descuento?: number }) => `
                   <tr>
                     <td>01</td>
-                    <td>${item.descripcion}</td>
+                    <td>
+                      ${item.descripcion}
+                      ${item.descuento && Number(item.descuento) > 0 ? `<br/><span style="font-size: 11px; font-style: italic;">(Desc: S/ ${Number(item.descuento).toFixed(2)})</span>` : ''}
+                    </td>
                     <td style="text-align: right;">S/. ${Number(item.monto).toFixed(2)}</td>
                   </tr>
                 `).join('')}
@@ -587,6 +597,7 @@ export default function ClientsPage() {
                   <tr>
                     <th className="px-4 py-2">N° Comprobante</th>
                     <th className="px-4 py-2">Fecha</th>
+                    <th className="px-4 py-2">Detalle</th>
                     <th className="px-4 py-2">Medio de Pago</th>
                     <th className="px-4 py-2">Monto Total</th>
                     <th className="px-4 py-2">Reeimprimir</th>
@@ -595,19 +606,34 @@ export default function ClientsPage() {
                 <tbody className="divide-y divide-gray-600">
                   {selectedPagos.map((pago) => (
                     <tr key={pago.cod_comprobante}>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-2 align-top">
                         {pago.serie}-{pago.correlativo.toString().padStart(6, "0")}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-2 align-top">
                         {pago.fecha_emision.toString().replace("T", " ").replace(".000Z", "")}
-                      </td>                      
-                      <td className="px-4 py-2 capitalize">{pago.medio_pago}</td>
-                      <td className="px-4 py-2 font-semibold text-green-400">
+                      </td>
+                      <td className="px-4 py-2 align-top">
+                        <ul className="list-disc list-inside space-y-1">
+                          {pago.detalle_pago?.map((detalle, idx) => (
+                            <li key={idx} className="text-xs">
+                              {detalle.descripcion}
+                              <span className="text-gray-400"> (S/ {Number(detalle.monto).toFixed(2)})</span>
+                              {Number(detalle.descuento) > 0 && (
+                                <span className="text-green-400 block ml-4">
+                                  - Descuento: S/ {Number(detalle.descuento).toFixed(2)}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td className="px-4 py-2 capitalize align-top">{pago.medio_pago}</td>
+                      <td className="px-4 py-2 font-semibold text-green-400 align-top">
                         S/ {pago.monto_total}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-2 align-top">
                         <Button onClick={() => handlePrintReceipt(pago.cod_comprobante)}
-                          className="bg-white text-black hover:bg-gray-700 hover:text-white">
+                          className="bg-white text-black hover:bg-gray-700 hover:text-white h-8 text-xs">
                           <Printer className="h-4 w-4 mr-2" />
                           Reimprimir
                         </Button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import {
-  BarChart3,
+  ListChecks,
   Calendar,
   FileText,
   Home,
@@ -82,6 +82,11 @@ export function AppSidebar() {
             icon: FileText,
           },
           {
+            title: "Servicios",
+            url: "/servicios",
+            icon: ListChecks,
+          },
+          {
             title: "Gestión de Técnicos",
             url: "/technicians",
             icon: Wrench,
@@ -96,7 +101,7 @@ export function AppSidebar() {
             url: "/distribucion",
             icon: Map,
           },
-          
+
           /*{
             title: "Usuarios",
             url: "/usuarios",
@@ -141,6 +146,11 @@ export function AppSidebar() {
             url: "/orders",
             icon: FileText,
           },
+          {
+            title: "Servicios",
+            url: "/servicios",
+            icon: ListChecks,
+          },
         ]
       case "TECNICO":
         return [
@@ -149,7 +159,7 @@ export function AppSidebar() {
             url: "/orders/tecnico",
             icon: ClipboardList,
           },
-                    {
+          {
             title: "Clientes",
             url: "/clients",
             icon: Users,
