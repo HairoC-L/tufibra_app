@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     SELECT 
       c.num_con AS contrato_num,
       CASE 
-        WHEN cl.cli_tipo = 'NATURAL' THEN CONCAT(COALESCE(cl.cli_nombre, ''), ' ', COALESCE(cl.cli_apellido, ''))
+        WHEN cl.cli_tipo = 'NATURAL' THEN CONCAT(COALESCE(cl.cli_apellido, ''), ' ', COALESCE(cl.cli_nombre, ''))
         ELSE COALESCE(cl.cli_razonsoci, '')
       END AS cliente_nombre,
       CASE 
@@ -70,26 +70,26 @@ export async function GET(req: NextRequest) {
   ];
 
   const safeResultados = resultados.map((r) => ({
-  ...r,
-  num_deudas: Number(r.num_deudas),
-  monto_total: Number(r.monto_total),
-}));
+    ...r,
+    num_deudas: Number(r.num_deudas),
+    monto_total: Number(r.monto_total),
+  }));
 
-let index = 1;
+  let index = 1;
 
-for (const r of safeResultados) {
-  worksheet.addRow({
-    numero: index++,
-    contrato: r.contrato_num,
-    cliente: r.cliente_nombre,
-    documento: r.documento,
-    direccion: r.direccion,
-    celular: r.celular,
-    num_deudas: r.num_deudas,
-    detalle: r.detalle,
-    monto_total: r.monto_total.toFixed(2),
-  });
-}
+  for (const r of safeResultados) {
+    worksheet.addRow({
+      numero: index++,
+      contrato: r.contrato_num,
+      cliente: r.cliente_nombre,
+      documento: r.documento,
+      direccion: r.direccion,
+      celular: r.celular,
+      num_deudas: r.num_deudas,
+      detalle: r.detalle,
+      monto_total: r.monto_total.toFixed(2),
+    });
+  }
 
 
   // Exportar archivo Excel
