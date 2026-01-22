@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { tipo, mes, num_con, detalle, monto } = await req.json();
+    const { tipo, mes, ano, num_con, detalle, monto } = await req.json();
 
     if (!tipo) return NextResponse.json({ error: "Seleccione un tipo de deuda" }, { status: 400 });
     if (!num_con) return NextResponse.json({ error: "Falta el número de contrato" }, { status: 400 });
@@ -38,9 +38,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No se encontró servicio asociado al contrato" }, { status: 400 });
       }
 
-      const currentYear = new Date().getFullYear();
-      const mesNumerico = new Date(`${mes} 1, ${currentYear}`).getMonth() + 1;
-      const mesFormato = `${currentYear}-${mesNumerico.toString().padStart(2, "0")}`;
+      const currentYear = ano ? parseInt(ano) : new Date().getFullYear();
+
+      const mesesMap: { [key: string]: string } = {
+        "ENERO": "01",
+        "FEBRERO": "02",
+        "MARZO": "03",
+        "ABRIL": "04",
+        "MAYO": "05",
+        "JUNIO": "06",
+        "JULIO": "07",
+        "AGOSTO": "08",
+        "SEPTIEMBRE": "09",
+        "OCTUBRE": "10",
+        "NOVIEMBRE": "11",
+        "DICIEMBRE": "12"
+      };
+
+      const mesNumerico = mesesMap[mes.toUpperCase()];
+
+      if (!mesNumerico) {
+        return NextResponse.json({ error: "Mes inválido" }, { status: 400 });
+      }
+
+      const mesFormato = `${currentYear}-${mesNumerico}`;
       ano_mes = mesFormato;
 
       // Validar duplicados

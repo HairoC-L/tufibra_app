@@ -25,6 +25,8 @@ export default function AddDeudaModal({
 }) {
   const [tipo, setTipo] = useState("");
   const [mes, setMes] = useState("");
+  const currentYear = new Date().getFullYear();
+  const [ano, setAno] = useState(currentYear.toString());
   const [detalle, setDetalle] = useState("");
   const [monto, setMonto] = useState("");
   const [loading, setLoading] = useState(false);
@@ -69,6 +71,7 @@ export default function AddDeudaModal({
         body: JSON.stringify({
           tipo,
           mes,
+          ano,
           num_con,
           detalle,
           monto,
@@ -121,20 +124,36 @@ export default function AddDeudaModal({
             </div>
 
             {/* Mes */}
-            <div className="space-y-1">
-              <Label>Mes</Label>
-              <Select value={mes} onValueChange={(v) => setMes(v)}>
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue placeholder="Seleccionar mes..." />
-                </SelectTrigger>
-                <SelectContent className="z-[10000] bg-gray-800 text-white border-gray-700">
-                  {meses.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>Mes</Label>
+                <Select value={mes} onValueChange={(v) => setMes(v)}>
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="Mes..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10000] bg-gray-800 text-white border-gray-700">
+                    {meses.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Año</Label>
+                <Select value={ano} onValueChange={(v) => setAno(v)}>
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="Año..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10000] bg-gray-800 text-white border-gray-700">
+                    <SelectItem value={(currentYear - 1).toString()}>{currentYear - 1}</SelectItem>
+                    <SelectItem value={currentYear.toString()}>{currentYear}</SelectItem>
+                    <SelectItem value={(currentYear + 1).toString()}>{currentYear + 1}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Solo si es OTROS */}

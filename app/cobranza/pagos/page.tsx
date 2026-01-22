@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Receipt, Search, CheckCircle, Calculator, CreditCard, ArrowLeft, Printer, Plus, ArrowRight
-  , AlertTriangle, User
+  , AlertTriangle, User, FileText, Wrench
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -48,6 +48,20 @@ type detallePago = {
   fecha_creacion: Date
   num_con: string
   estado: string
+}
+
+interface Trabajo {
+  id: string
+  client: string
+  type: string
+  status: string
+  priority: string
+  technician: string
+  createdDate: string
+  scheduledDate: string
+  description: string
+  address: string
+  id_tec: number
 }
 
 interface Debt {
@@ -141,6 +155,7 @@ interface pagos {
   num_con: string
   id_per_oficina: string
   duedas_ids: string[]
+  detalle_pago?: detallePago[]
 }
 
 interface Receipt {
@@ -198,6 +213,7 @@ export default function ClientsPage() {
   const [deudas, setDeudas] = useState<deuda[]>([])
 
   const [pagos, setPagos] = useState<pagos[]>([])
+  const [trabajos, setTrabajos] = useState<Trabajo[]>([])
   const [detallePago, setDetallePago] = useState<detallePago[]>([]);
 
 
@@ -206,6 +222,10 @@ export default function ClientsPage() {
   const [selectedTipo, setSelectedTipo] = useState("");
   const [id_user, setIdUser] = useState("");
   const [showAddDeuda, setShowAddDeuda] = useState(false);
+
+  // Modals for Ver Pagos / Ver Trabajos
+  const [showPagosModal, setShowPagosModal] = useState(false);
+  const [showTrabajosModal, setShowTrabajosModal] = useState(false);
 
 
   const [showDetalleComprobante, setShowDetalleComprobante] = useState(false);
@@ -278,10 +298,26 @@ export default function ClientsPage() {
     }
   };
 
+  // Carga de trabajos
+  const fetchTrabajos = async () => {
+    try {
+      const res = await fetch("/api/ordenTrabajo");
+      if (!res.ok) {
+        console.error("Error al obtener información de los trabajos:", res.status);
+        return;
+      }
+      const data = await res.json();
+      setTrabajos(data);
+    } catch (err) {
+      console.error("Error parsing JSON:", err);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
     fetchDeudas();
     fetchPagos();
+    fetchTrabajos();
   }, []);
 
 
@@ -924,13 +960,32 @@ export default function ClientsPage() {
               <p className="text-gray-300">SERVICIO: {selectedClient?.serv_nombre}</p>
               <p className="text-gray-300">DIRECCION: {selectedClient?.cli_direccion}</p>
             </div>
-            <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-2">
               <Button
                 className="bg-gray-200 text-gray-700 hover:bg-gray-500 hover:text-white"
                 onClick={() => setShowAddDeuda(true)}
-              >                Agregar otras Deudas
+              >
+                Agregar otras Deudas
                 <Plus className="h-4 w-4 ml-2" />
               </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="bg-gray-200 text-gray-700 hover:bg-gray-500 hover:text-white border-none"
+                  onClick={() => setShowPagosModal(true)}
+                >
+                  Ver todos los pagos
+                  <FileText className="h-4 w-4 ml-2" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="bg-gray-200 text-gray-700 hover:bg-gray-500 hover:text-white border-none"
+                  onClick={() => setShowTrabajosModal(true)}
+                >
+                  Ver trabajos
+                  <Wrench className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1016,7 +1071,7 @@ export default function ClientsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-xs h-7 border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700"
+                            className="text-xs h-7 border-gray-600 hover:text-white hover:bg-gray-700"
                             onClick={() => openDiscountModal(index)}
                           >
                             {item.discount && item.discount > 0 ? "Modificar Descuento" : "Agregar Descuento"}
@@ -1366,6 +1421,127 @@ export default function ClientsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Modal Ver Pagos */}
+        {showPagosModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <Card className="w-full max-w-4xl max-h-[80vh] overflow-hidden bg-gray-900 border-gray-700 text-white flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle>Historial de Pagos - {selectedClient?.cli_nombre || selectedClient?.cli_razonsoci}</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => setShowPagosModal(false)}>
+                  <span className="text-xl">×</span>
+                </Button>
+              </CardHeader>
+              <CardContent className="overflow-y-auto flex-1 p-4">
+                <div className="space-y-4">
+                  {pagos.filter(p => p.num_con === selectedClient?.num_con).length > 0 ? (
+                    pagos.filter(p => p.num_con === selectedClient?.num_con)
+                      .sort((a, b) => new Date(b.fecha_emision).getTime() - new Date(a.fecha_emision).getTime())
+                      .map((pago_item) => (
+                        <div key={pago_item.cod_comprobante} className="border border-gray-700 rounded-lg p-2 bg-gray-800/50">
+                          <div className="flex justify-between items-center mb-1">
+                            <div>
+                              <p className="font-bold text-base">{pago_item.cod_comprobante}</p>
+                              <p className="text-xs text-gray-400">{new Date(pago_item.fecha_emision).toLocaleDateString("es-PE")} {new Date(pago_item.fecha_emision).toLocaleTimeString("es-PE")}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-400 text-base">S/ {Number(pago_item.monto_total).toFixed(2)}</p>
+                              <Badge className={
+                                pago_item.medio_pago.toLowerCase() === "yape" ? "bg-purple-600 hover:bg-purple-700" :
+                                  pago_item.medio_pago.toLowerCase() === "transferencia" ? "bg-blue-600 hover:bg-blue-700" :
+                                    pago_item.medio_pago.toLowerCase() === "efectivo" ? "bg-green-600 hover:bg-green-700" :
+                                      "bg-gray-600 hover:bg-gray-700"
+                              }>
+                                {pago_item.medio_pago}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {pago_item.detalle_pago && pago_item.detalle_pago.length > 0 && (
+                            <div className="mt-1 text-xs bg-gray-900/50 p-1.5 rounded">
+                              <div className="text-gray-400 mb-0.5 font-medium">Conceptos:</div>
+                              <ul className="list-disc list-inside text-gray-300 space-y-0.5">
+                                {pago_item.detalle_pago.map((det, idx) => (
+                                  <li key={idx} className="truncate">
+                                    {det.descripcion} - <span className="text-gray-400">S/ {Number(det.monto).toFixed(2)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                  ) : (
+                    <div className="text-center py-10 text-gray-500">
+                      No hay pagos registrados para este cliente.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Modal Ver Trabajos */}
+        {showTrabajosModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <Card className="w-full max-w-4xl max-h-[80vh] overflow-hidden bg-gray-900 border-gray-700 text-white flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle>Historial de Trabajos - {selectedClient?.cli_nombre || selectedClient?.cli_razonsoci}</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => setShowTrabajosModal(false)}>
+                  <span className="text-xl">×</span>
+                </Button>
+              </CardHeader>
+              <CardContent className="overflow-y-auto flex-1 p-4">
+                <div className="space-y-4">
+                  {trabajos.filter(t => t.description.includes(selectedClient?.cli_nombre || "") || t.client.includes(selectedClient?.cli_nombre || "") || t.client === selectedClient?.cli_razonsoci).length > 0 ? (
+                    trabajos.filter(t => t.description.includes(selectedClient?.cli_nombre || "") || t.client.includes(selectedClient?.cli_nombre || "") || t.client === selectedClient?.cli_razonsoci)
+                      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
+                      .map((trabajo) => (
+                        <div key={trabajo.id} className="border border-gray-700 rounded-lg p-2 bg-gray-800/50">
+                          <div className="flex justify-between items-center mb-1">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-base">{trabajo.type}</p>
+                                <Badge className="text-xs px-1.5 py-0 h-5" variant={
+                                  trabajo.status === "Pendiente" ? "secondary" :
+                                    trabajo.status === "En proceso" ? "warning" :
+                                      trabajo.status === "Finalizado" ? "success" : "destructive"
+                                }>
+                                  {trabajo.status}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-400">Asignado a: {trabajo.technician}</p>
+                              <p className="text-xs text-gray-500">Creado: {trabajo.createdDate}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] text-gray-400 uppercase">Prioridad</p>
+                              <span className="font-medium text-sm text-blue-400">{trabajo.priority}</span>
+                            </div>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-300 bg-gray-900/50 p-1.5 rounded">
+                            <p>{trabajo.description}</p>
+                          </div>
+                        </div>
+                      ))
+                  ) : (
+                    // Fallback to simple filtering if needed or just show empty
+                    trabajos.length > 0 ? (
+                      <div className="text-center py-10 text-gray-500">
+                        No se encontraron trabajos vinculados directamente por nombre.
+                        (Implemente filtro por num_con si está disponible en API)
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-gray-500">
+                        No hay trabajos registrados.
+                      </div>
+                    )
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </SidebarInset>
