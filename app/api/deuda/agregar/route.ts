@@ -66,7 +66,13 @@ export async function POST(req: NextRequest) {
 
       // Validar duplicados
       const deudaExistente = await prisma.deuda.findFirst({
-        where: { ano_mes, num_con },
+        where: {
+          ano_mes,
+          num_con,
+          estado: {
+            in: ["ACTIVO", "PAGADO", "RESTANTE"],
+          },
+        },
       });
 
       if (deudaExistente) {
