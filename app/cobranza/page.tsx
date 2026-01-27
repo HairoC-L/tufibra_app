@@ -57,6 +57,9 @@ type deuda = {
   fecha_creacion: Date
   num_con: string
   estado: string
+  contrato?: {
+    estado: number | null
+  }
 }
 
 type ingresoPrevisto = {
@@ -98,7 +101,7 @@ export default function ClientsPage() {
   //Carga de deudas
   const fetchDeudas = async () => {
     try {
-      const res = await fetch("/api/caja/deudasTodo");
+      const res = await fetch("/api/caja/deudasParaCobranza");
       if (!res.ok) {
         console.error("Error al obtener información de las deudas:", res.status);
         return;
@@ -154,7 +157,7 @@ export default function ClientsPage() {
 
   // ADMIN - MÉTRICAS
   const deudasActivas = deudas.filter(
-    (d) => d.estado === "ACTIVO" || d.estado === "RESTANTE"
+    (d) => (d.estado === "ACTIVO" || d.estado === "RESTANTE") && d.contrato?.estado === 1
   );
 
   const deudasAnuladas = deudas.filter((d) => d.estado === "ANULADO");
