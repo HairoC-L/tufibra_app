@@ -28,7 +28,9 @@ import 'leaflet/dist/leaflet.css';
 import { ImageViewer } from "@/components/ImageViewer";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
 import { MikrotikStatusModal } from "@/components/MikrotikStatusModal";
-import { Globe, Wifi as WifiIcon } from "lucide-react"
+import { Globe, Wifi as WifiIcon, Folder } from "lucide-react"
+import { CameraCaptureModal } from "@/components/CameraCaptureModal";
+import { compressImage } from "@/lib/image-utils";
 
 
 
@@ -148,6 +150,8 @@ export default function ClientsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<"create" | "edit" | null>(null);
 
   const cajasFiltradas = cajas.filter(caja => caja.id_nodo === Number(selectedNodo));
 
@@ -307,6 +311,37 @@ export default function ClientsPage() {
       setClients(data);
     } catch (err) {
       console.error("Error parsing JSON:", err);
+    }
+  };
+
+  const handleCapture = async (file: File) => {
+    try {
+      const compressed = await compressImage(file);
+      if (cameraTarget === "create") {
+        setSelectedFile(compressed);
+      } else if (cameraTarget === "edit") {
+        setEditFile(compressed);
+      }
+    } catch (error) {
+      console.error("Error compressing captured image:", error);
+      if (cameraTarget === "create") setSelectedFile(file);
+      else if (cameraTarget === "edit") setEditFile(file);
+    }
+    setIsCameraOpen(false);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: "create" | "edit") => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        if (type === "create") setSelectedFile(compressed);
+        else setEditFile(compressed);
+      } catch (error) {
+        console.error("Error compressing selected file:", error);
+        if (type === "create") setSelectedFile(file);
+        else setEditFile(file);
+      }
     }
   };
 
@@ -844,13 +879,45 @@ export default function ClientsPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="foto">Foto de Fachada</Label>
-                            <Input
-                              id="foto"
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                              className="bg-gray-700 border-gray-600"
-                            />
+                            <div className="flex flex-col gap-2">
+                              {selectedFile ? (
+                                <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-600 bg-gray-900/50">
+                                  <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-contain" alt="Vista previa fachada" />
+                                  <Button 
+                                    variant="destructive" size="sm" className="absolute top-2 right-2 h-6 w-6 p-0 rounded-full"
+                                    onClick={() => setSelectedFile(null)}
+                                  >
+                                    X
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input 
+                                    type="file" id="create-gallery" accept="image/*" className="hidden" 
+                                    onChange={(e) => handleFileSelect(e, "create")} 
+                                  />
+                                  <Button 
+                                    type="button" variant="outline" size="sm" 
+                                    className="bg-gray-700 border-gray-600 h-10 gap-1"
+                                    onClick={() => {
+                                      setCameraTarget("create");
+                                      setIsCameraOpen(true);
+                                    }}
+                                  >
+                                    <PlusCircle className="w-4 h-4 text-cyan-400" />
+                                    <span className="text-xs">Cámara</span>
+                                  </Button>
+                                  <Button 
+                                    type="button" variant="outline" size="sm" 
+                                    className="bg-gray-700 border-gray-600 h-10 gap-1"
+                                    onClick={() => document.getElementById('create-gallery')?.click()}
+                                  >
+                                    <Folder className="w-4 h-4 text-purple-400" />
+                                    <span className="text-xs">Galería</span>
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                         </div>
@@ -1525,25 +1592,59 @@ export default function ClientsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-foto">Actualizar Foto de Fachada</Label>
-                  {selectedClient.cli_foto_fachada && (
-                    <div className="mb-2 relative w-32 h-20 rounded border border-gray-600 overflow-hidden">
-                      <img 
-                        src={`/api/foto/${selectedClient.cli_foto_fachada}`} 
-                        alt="Current" 
-                        className="w-full h-full object-cover opacity-50"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white bg-black/40">
-                        Foto Actual
+                  <div className="flex flex-col gap-2">
+                    {editFile ? (
+                      <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-600 bg-gray-900/50">
+                        <img src={URL.createObjectURL(editFile)} className="w-full h-full object-contain" alt="Vista previa nueva fachada" />
+                        <Button 
+                          variant="destructive" size="sm" className="absolute top-2 right-2 h-6 w-6 p-0 rounded-full"
+                          onClick={() => setEditFile(null)}
+                        >
+                          X
+                        </Button>
                       </div>
-                    </div>
-                  )}
-                  <Input
-                    id="edit-foto"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setEditFile(e.target.files?.[0] || null)}
-                    className="bg-gray-700 border-gray-600"
-                  />
+                    ) : (
+                      <>
+                        {selectedClient.cli_foto_fachada && (
+                          <div className="mb-2 relative w-32 h-20 rounded border border-gray-600 overflow-hidden">
+                            <img 
+                              src={`/api/foto/${selectedClient.cli_foto_fachada}`} 
+                              alt="Current" 
+                              className="w-full h-full object-cover opacity-50"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white bg-black/40">
+                              Foto Actual
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-2">
+                          <input 
+                            type="file" id="edit-gallery" accept="image/*" className="hidden" 
+                            onChange={(e) => handleFileSelect(e, "edit")} 
+                          />
+                          <Button 
+                            type="button" variant="outline" size="sm" 
+                            className="bg-gray-700 border-gray-600 h-10 gap-1"
+                            onClick={() => {
+                              setCameraTarget("edit");
+                              setIsCameraOpen(true);
+                            }}
+                          >
+                            <PlusCircle className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs">Cámara</span>
+                          </Button>
+                          <Button 
+                            type="button" variant="outline" size="sm" 
+                            className="bg-gray-700 border-gray-600 h-10 gap-1"
+                            onClick={() => document.getElementById('edit-gallery')?.click()}
+                          >
+                            <Folder className="w-4 h-4 text-purple-400" />
+                            <span className="text-xs">Galería</span>
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1570,6 +1671,11 @@ export default function ClientsPage() {
           onClose={() => setIsMikrotikModalOpen(false)}
           pppUser={selectedClient?.cli_ppp_user || ""}
           clientName={selectedClient ? (selectedClient.cli_tipo === "JURIDICA" ? selectedClient.cli_razonsoci : `${selectedClient.cli_nombre} ${selectedClient.cli_apellido}`) : ""}
+        />
+        <CameraCaptureModal 
+          isOpen={isCameraOpen} 
+          onClose={() => setIsCameraOpen(false)} 
+          onCapture={handleCapture}
         />
       </SidebarInset>
     </SidebarProvider>
