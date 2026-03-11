@@ -3,9 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { ord_id, estado } = await req.json();
+    const { ord_id, estado, ord_coordenada } = await req.json();
 
-    console.log("Actualizando orden:", ord_id, "Nuevo estado:", estado);
 
     // Convertimos a números enteros
     const ordIdParsed = parseInt(ord_id, 10);
@@ -17,7 +16,11 @@ export async function POST(req: NextRequest) {
       const ordenTrabajo = await prisma.orden_trabajo.findUnique({
         where: { ord_id: ordIdParsed },
         include: {
-          contrato: true, // Incluir el contrato asociado
+          contrato: {
+            include: {
+              cliente: true
+            }
+          }, // Incluir el contrato asociado
           tipo_trabajo: true, // Incluir el tipo de trabajo asociado
         },
       });
@@ -86,6 +89,14 @@ function getLocalDate(offsetInHours = -5) {
   const localTimestamp = now.getTime() + offsetInHours * 60 * 60 * 1000;
   return new Date(localTimestamp);
 }
+
+      // Si hay coordenadas y cliente, las actualizamos en el cliente
+      if (ord_coordenada && contrato?.cliente?.cli_id) {
+        await prisma.cliente.update({
+          where: { cli_id: contrato.cliente.cli_id },
+          data: { cli_coordenada: ord_coordenada }
+        });
+      }
 
       // Actualizar estado de la orden de trabajo
       const ordenActualizada = await prisma.orden_trabajo.update({

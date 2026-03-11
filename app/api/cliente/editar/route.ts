@@ -3,7 +3,24 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { cliente, contrato } = await req.json();
+    const { cliente, contrato, userRole } = await req.json();
+
+    // Validar si se está intentando cambiar el PPP user sin ser administrador
+    if (cliente.cli_ppp_user) {
+      const currentClient = await prisma.cliente.findUnique({
+        where: { cli_id: cliente.cli_id },
+        select: { cli_ppp_user: true }
+      });
+
+      if (currentClient && currentClient.cli_ppp_user !== cliente.cli_ppp_user) {
+        if (userRole !== 'ADMINISTRADOR') {
+          return NextResponse.json(
+            { error: "No tiene permisos para modificar el usuario Mikrotik (PPP). Solo un Administrador puede hacerlo." },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     // Actualizar cliente
     await prisma.cliente.update({
@@ -20,6 +37,7 @@ export async function POST(req: NextRequest) {
         cli_direccion: cliente.cli_direccion,
         cli_coordenada: cliente.cli_coordenada,
         cli_cel: cliente.cli_cel,
+        cli_ppp_user: cliente.cli_ppp_user,
       },
     });
 
@@ -29,9 +47,9 @@ export async function POST(req: NextRequest) {
         num_con: contrato.num_con,
       },
       data: {
-        id_serv: contrato.id_serv,
-        id_caja: contrato.id_caja,
-        estado: contrato.estado,
+        id_serv: contrato.id_serv ? parseInt(contrato.id_serv) : undefined,
+        id_caja: contrato.id_caja ? parseInt(contrato.id_caja) : undefined,
+        estado: contrato.estado ? parseInt(contrato.estado) : undefined,
       },
     });
 

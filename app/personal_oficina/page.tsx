@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, Calendar, Wrench, User } from "lucide-react"
+import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, Calendar, Wrench, User, KeyRound } from "lucide-react"
 import { toast } from 'react-toastify';
 
 interface per_ofina {
   id: string
+  usu_id: number
   name: string
   email: string
   phone: string
@@ -43,6 +44,18 @@ export default function cajeroPage() {
     esp_id: "",
     dni: "",
   });
+
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false)
+  const [resetPasswordData, setResetPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  })
+  const [isResetting, setIsResetting] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    setUserRole(localStorage.getItem("userRole"))
+  }, [])
 
 
   //Carga de tecnicos
@@ -124,6 +137,47 @@ export default function cajeroPage() {
       setcajero(cajero.map((tech) => (tech.id === selectedCajero.id ? selectedCajero : tech)))
       setIsEditModalOpen(false)
       setSelectedCajero(null)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!selectedCajero) return
+
+    if (resetPasswordData.newPassword !== resetPasswordData.confirmPassword) {
+      toast.error("Las contraseñas no coinciden")
+      return
+    }
+
+    if (resetPasswordData.newPassword.length < 6) {
+      toast.error("La contraseña debe tener al menos 6 caracteres")
+      return
+    }
+
+    setIsResetting(true)
+    try {
+      const adminId = localStorage.getItem("userId")
+      const res = await fetch("/api/user/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminId,
+          targetUserId: selectedCajero.usu_id,
+          newPassword: resetPasswordData.newPassword,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success("Contraseña restablecida correctamente")
+        setIsResetModalOpen(false)
+        setResetPasswordData({ newPassword: "", confirmPassword: "" })
+      } else {
+        const data = await res.json()
+        toast.error(data.error || "Error al restablecer contraseña")
+      }
+    } catch (error) {
+      toast.error("Error de red")
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -291,6 +345,20 @@ export default function cajeroPage() {
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
+                              {userRole === "ADMINISTRADOR" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedCajero(Cajero)
+                                    setIsResetModalOpen(true)
+                                  }}
+                                  className="text-amber-400 hover:text-amber-300"
+                                  title="Restablecer Contraseña"
+                                >
+                                  <KeyRound className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -460,6 +528,47 @@ export default function cajeroPage() {
               </Button>
               <Button onClick={handleEditCajero} className="bg-gradient-to-r from-cyan-500 to-blue-600">
                 Guardar Cambios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Restablecer Contraseña */}
+        <Dialog open={isResetModalOpen} onOpenChange={setIsResetModalOpen}>
+          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Restablecer Contraseña</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Establecer nueva contraseña para {selectedCajero?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="relative">
+                <Input
+                  type="password"
+                  placeholder="Nueva contraseña"
+                  value={resetPasswordData.newPassword}
+                  onChange={(e) => setResetPasswordData({ ...resetPasswordData, newPassword: e.target.value })}
+                  className="bg-gray-700 border-gray-600 text-white pl-10"
+                />
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              </div>
+              <div className="relative">
+                <Input
+                  type="password"
+                  placeholder="Confirmar contraseña"
+                  value={resetPasswordData.confirmPassword}
+                  onChange={(e) => setResetPasswordData({ ...resetPasswordData, confirmPassword: e.target.value })}
+                  className="bg-gray-700 border-gray-600 text-white pl-10"
+                />
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              </div>
+              <Button
+                onClick={handleResetPassword}
+                disabled={isResetting || !resetPasswordData.newPassword || !resetPasswordData.confirmPassword}
+                className="w-full bg-amber-600 hover:bg-amber-700"
+              >
+                {isResetting ? "Restableciendo..." : "Restablecer Ahora"}
               </Button>
             </div>
           </DialogContent>

@@ -19,15 +19,11 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Plus, Search, Edit, Eye, Filter, Truck,
-  AlertTriangle,
-  Wrench,
-  CheckCircle
-} from "lucide-react"
 import Listado_Tecnicos from "@/components/filtrado_tec";
 import Listado_Clientes from "@/components/filtrado_cli";
 import { toast } from 'react-toastify';
+import { ImageViewer } from "@/components/ImageViewer";
+import { Plus, Search, Edit, Eye, Filter, Truck, AlertTriangle, Wrench, CheckCircle, PlusCircle, MapPin as MapPinIcon, ChevronLeft, ChevronRight, Folder } from "lucide-react"
 
 
 type TipoTrabajo = {
@@ -80,6 +76,12 @@ interface WorkOrder {
   scheduledDate: string
   description: string
   address: string
+  cli_foto_fachada: string
+  ppp_user?: string
+  ord_foto_nap?: string
+  ord_foto_ont?: string
+  ord_foto_dni?: string
+  ord_coordenada?: string
 }
 
 type servicios = {
@@ -144,10 +146,17 @@ export default function OrdersPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("Pendiente")
+  const [filterWorkType, setFilterWorkType] = useState("all")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null)
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [viewingPhotoUrl, setViewingPhotoUrl] = useState("");
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   //Carga de clientes y contratos
   const fetchClients = async () => {
@@ -277,8 +286,19 @@ export default function OrdersPage() {
       order.scheduledDate.toLocaleLowerCase().includes(searchTerm.toLocaleLowerCase()) ||
       order.priority.toLocaleLowerCase().includes(searchTerm.toLocaleLowerCase())
     const matchesFilter = filterStatus === "all" || order.status === filterStatus
-    return matchesSearch && matchesFilter
+    const matchesWorkType = filterStatus === "Finalizado" 
+      ? (filterWorkType === "all" || order.type === filterWorkType)
+      : true
+    return matchesSearch && matchesFilter && matchesWorkType
   })
+
+  // Lógica de Paginación
+  const indexOfLastOrder = currentPage * rowsPerPage
+  const indexOfFirstOrder = indexOfLastOrder - rowsPerPage
+  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder)
+  const totalPages = Math.ceil(filteredOrders.length / rowsPerPage)
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber)
 
   function convertToUTCWithoutShift(localDateTime: string): string {
     // Descompone la fecha tipo "2025-09-19T12:23"
@@ -653,6 +673,22 @@ export default function OrdersPage() {
                       <SelectItem value="Finalizado">Finalizado</SelectItem>
                     </SelectContent>
                   </Select>
+                  {filterStatus === "Finalizado" && (
+                    <Select value={filterWorkType} onValueChange={setFilterWorkType}>
+                      <SelectTrigger className="w-48 bg-slate-700/50 border-slate-600 text-white">
+                        <Filter className="w-4 h-4 mr-2" />
+                        <SelectValue placeholder="Tipo de Trabajo" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 text-gray-300">
+                        <SelectItem value="all">Todos los tipos</SelectItem>
+                        {tipoTrabajos.map((tipo) => (
+                          <SelectItem key={tipo.tip_id} value={tipo.tip_nombre}>
+                            {tipo.tip_nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="rounded-md border border-gray-700 bg-gray-800/30">
@@ -669,9 +705,9 @@ export default function OrdersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => (
+                      {currentOrders.map((order) => (
                         <TableRow key={order.id} className="border-gray-700">
-                          <TableCell className="text-gray-200">{order.client}</TableCell>
+                          <TableCell className="text-gray-200 font-medium">{order.client}</TableCell>
                           <TableCell className="text-gray-200">{order.type}</TableCell>
                           <TableCell>
                             <Badge className={`${getStatusColor(order.status)} text-white`}>{order.status}</Badge>
@@ -684,32 +720,63 @@ export default function OrdersPage() {
                           <TableCell>
                             <div className="flex space-x-2">
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
+                                className="bg-slate-700 hover:bg-slate-600 text-white border-none"
                                 onClick={() => {
                                   setSelectedOrder(order)
                                   setIsViewModalOpen(true)
                                 }}
-                                className="text-slate-400 hover:text-black"
-                              ><Eye className="w-4 h-4" />Ver
-                              </Button>
-                              {/*<Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedOrder(order)
-                                  setIsEditModalOpen(true)
-                                }}
-                                className="text-slate-400 hover:text-white"
                               >
-                                <Edit className="w-4 h-4" />
-                              </Button>*/}
+                                <Eye className="w-4 h-4 mr-1" />Ver
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* Controles de Paginación */}
+                <div className="flex items-center justify-between mt-6 px-2">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-400">Mostrar</span>
+                    <Select value={String(rowsPerPage)} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                      <SelectTrigger className="w-24 bg-slate-700/50 border-slate-600 text-white h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 text-gray-300">
+                        <SelectItem value="10">10 filas</SelectItem>
+                        <SelectItem value="50">50 filas</SelectItem>
+                        <SelectItem value="100">100 filas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === 1}
+                      onClick={() => paginate(currentPage - 1)}
+                      className="bg-slate-700 hover:bg-slate-600 text-white border-none"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="text-sm text-gray-400 mx-2">
+                      Página {currentPage} de {totalPages || 1}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      onClick={() => paginate(currentPage + 1)}
+                      className="bg-slate-700 hover:bg-slate-600 text-white border-none"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -718,7 +785,7 @@ export default function OrdersPage() {
 
         {/* Modal de visualización */}
         <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl">
+          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalles de la Orden de Trabajo</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -730,45 +797,73 @@ export default function OrdersPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Cliente</Label>
-                    <p className="text-white">{selectedOrder.client}</p>
+                    <p className="text-white font-semibold">{selectedOrder.client}</p>
                   </div>
+                  <div>
+                    <Label className="text-gray-400">Usuario PPP (Mikrotik)</Label>
+                    <p className="text-blue-400 font-mono font-bold tracking-wider">{selectedOrder.ppp_user || "SIN USUARIO"}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Tipo de Trabajo</Label>
                     <p className="text-white">{selectedOrder.type}</p>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Estado</Label>
                     <Badge className={`${getStatusColor(selectedOrder.status)} text-white mt-1`}>
                       {selectedOrder.status}
                     </Badge>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Prioridad</Label>
                     <Badge className={`${getPriorityColor(selectedOrder.priority)} text-white mt-1`}>
                       {selectedOrder.priority}
                     </Badge>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Técnico Asignado</Label>
                     <p className="text-white">{selectedOrder.technician}</p>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-400">Fecha Programada</Label>
                     <p className="text-white">{selectedOrder.scheduledDate}</p>
                   </div>
-                </div>
-                <div>
-                  <Label className="text-gray-400">Dirección</Label>
-                  <p className="text-white">{selectedOrder.address}</p>
+                  <div>
+                    <Label className="text-gray-400">Dirección</Label>
+                    <p className="text-white">{selectedOrder.address}</p>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-gray-400">Descripción</Label>
                   <p className="text-white">{selectedOrder.description}</p>
                 </div>
+
+                {selectedOrder.cli_foto_fachada && (
+                  <div className="mt-4">
+                    <Label className="text-gray-400 mb-2 block">Foto de Fachada (Click para ampliar)</Label>
+                    <div 
+                      className="relative w-full h-48 sm:h-64 rounded-md overflow-hidden border border-gray-700 cursor-pointer hover:border-blue-500 transition-colors group"
+                      onClick={() => {
+                        setViewingPhotoUrl(`/api/foto/${selectedOrder.cli_foto_fachada}`)
+                        setIsImageViewerOpen(true)
+                      }}
+                    >
+                      <img
+                        src={`/api/foto/${selectedOrder.cli_foto_fachada}`}
+                        alt="Fachada"
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <PlusCircle className="text-white w-8 h-8" />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {selectedOrder && (
                   <div className="mt-6">
@@ -783,7 +878,7 @@ export default function OrdersPage() {
                             onClick={() => handleStepClick(step)}
                           >
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center
-              ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-600 text-gray-300'}`}>
+                          ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-600 text-gray-300'}`}>
                               {getStepIcon(step)}
                             </div>
                             <span className="text-sm mt-1 text-gray-300">{step}</span>
@@ -797,6 +892,54 @@ export default function OrdersPage() {
                         />
                       </div>
                     </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                  {selectedOrder.ord_foto_nap && (
+                    <div>
+                      <Label className="text-gray-400 mb-2 block text-xs">Foto NAP</Label>
+                      <img 
+                        src={`/api/foto/${selectedOrder.ord_foto_nap}`} 
+                        className="w-full h-24 object-cover rounded border border-gray-700 cursor-pointer"
+                        onClick={() => {
+                          setViewingPhotoUrl(`/api/foto/${selectedOrder.ord_foto_nap}`)
+                          setIsImageViewerOpen(true)
+                        }}
+                      />
+                    </div>
+                  )}
+                  {selectedOrder.ord_foto_ont && (
+                    <div>
+                      <Label className="text-gray-400 mb-2 block text-xs">Foto ONT</Label>
+                      <img 
+                        src={`/api/foto/${selectedOrder.ord_foto_ont}`} 
+                        className="w-full h-24 object-cover rounded border border-gray-700 cursor-pointer"
+                        onClick={() => {
+                          setViewingPhotoUrl(`/api/foto/${selectedOrder.ord_foto_ont}`)
+                          setIsImageViewerOpen(true)
+                        }}
+                      />
+                    </div>
+                  )}
+                  {selectedOrder.ord_foto_dni && (
+                    <div>
+                      <Label className="text-gray-400 mb-2 block text-xs">Foto DNI</Label>
+                      <img 
+                        src={`/api/foto/${selectedOrder.ord_foto_dni}`} 
+                        className="w-full h-24 object-cover rounded border border-gray-700 cursor-pointer"
+                        onClick={() => {
+                          setViewingPhotoUrl(`/api/foto/${selectedOrder.ord_foto_dni}`)
+                          setIsImageViewerOpen(true)
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                {selectedOrder.ord_coordenada && (
+                  <div className="mt-2 text-xs text-gray-400 flex items-center gap-1">
+                    <MapPinIcon className="w-3 h-3 text-blue-400" />
+                    <span className="font-semibold text-gray-300">Ubicación guardada:</span> {selectedOrder.ord_coordenada}
                   </div>
                 )}
               </div>
@@ -937,6 +1080,12 @@ export default function OrdersPage() {
             </div>
           </DialogContent>
         </Dialog>*/}
+        <ImageViewer 
+          src={viewingPhotoUrl}
+          alt="Foto Detalle"
+          isOpen={isImageViewerOpen}
+          onClose={() => setIsImageViewerOpen(false)}
+        />
       </SidebarInset>
     </SidebarProvider>
   )

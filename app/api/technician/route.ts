@@ -55,6 +55,7 @@ export async function GET() {
 
     const result = technicians.map((technician) => ({
       id: `TEC-${technician.usuario.usu_dni}`,
+      usu_id: technician.usuario.usu_id,
       name: technician.usuario.usu_nombre || "",
       email: technician.usuario.usu_correo || "",
       phone: technician.usuario.usu_cel || "",

@@ -48,6 +48,7 @@ export async function GET() {
 
     const result = per_oficina.map((per_oficina) => ({
       id: `OFI-${per_oficina.usuario.usu_dni}`,
+      usu_id: per_oficina.usuario.usu_id,
       name: per_oficina.usuario.usu_nombre || "",
       email: per_oficina.usuario.usu_correo || "",
       phone: per_oficina.usuario.usu_cel || "",

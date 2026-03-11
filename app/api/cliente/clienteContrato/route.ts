@@ -17,7 +17,7 @@ export async function GET() {
     })
 
     // Formatear los datos para que coincidan con tu interfaz
-    const formattedClients = clientes.map((cli) => {
+    const formattedClients = clientes.map((cli: any) => {
       const contrato = cli.contrato[0]
 
       return {
@@ -41,6 +41,8 @@ export async function GET() {
         id_tipo_comprobante: contrato?.id_tipo_comprobante,
         id_caja: contrato?.id_caja ?? "",
         id_nodo: contrato?.caja?.id_nodo ?? "",
+        cli_foto_fachada: cli.cli_foto_fachada ?? "",
+        cli_ppp_user: cli.cli_ppp_user ?? "",
       }
     })
 

@@ -17,6 +17,7 @@ import {
   MapPin,
   ClipboardList,
   DollarSign,
+  Globe,
 } from "lucide-react"
 
 import {
@@ -101,33 +102,16 @@ export function AppSidebar() {
             url: "/distribucion",
             icon: Map,
           },
-
-          /*{
-            title: "Usuarios",
-            url: "/usuarios",
-            icon: User,
-          },
           {
-            title: "Reportes",
-            url: "/reportes",
-            icon: BarChart3,
+            title: "Mikrotik",
+            url: "/settings/mikrotik",
+            icon: Globe,
           },
-          {
-            title: "Órdenes de Trabajo",
-            url: "/orders",
-            icon: FileText,
-          },
-          /*{
-            title: "Seguimiento",
-            url: "/tracking",
-            icon: MapPin,
-          },
-
           {
             title: "Configuración",
             url: "/settings",
             icon: Settings,
-          },*/
+          },
         ]
       case "OFICINA":
         return [
@@ -151,6 +135,11 @@ export function AppSidebar() {
             url: "/servicios",
             icon: ListChecks,
           },
+          {
+            title: "Configuración",
+            url: "/settings",
+            icon: Settings,
+          },
         ]
       case "TECNICO":
         return [
@@ -168,6 +157,11 @@ export function AppSidebar() {
             title: "Distribución",
             url: "/distribucion",
             icon: Map,
+          },
+          {
+            title: "Configuración",
+            url: "/settings",
+            icon: Settings,
           },
         ]
       default:

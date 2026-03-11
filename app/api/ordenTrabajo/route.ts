@@ -27,9 +27,6 @@ export async function POST(req: NextRequest) {
 
     const fechaAsign = new Date(fecha_asignacion); 
 
-    console.log("📅 Fecha original enviada:", fecha_asignacion);
-    console.log("🕓 Fecha procesada (fechaAsign):", fechaAsign.toISOString());
-
     // Obtener tipo de trabajo
     const tipoTrabajo = await prisma.tipo_trabajo.findUnique({
       where: { tip_id: parseInt(tip_id) },
@@ -223,6 +220,12 @@ export async function GET() {
 
         description: orden.ord_descripcion || "",
         address: cliente?.cli_direccion || "",
+        cli_foto_fachada: cliente?.cli_foto_fachada || "",
+        ppp_user: cliente?.cli_ppp_user || "",
+        ord_foto_nap: cliente?.cli_foto_nap || "",
+        ord_foto_ont: cliente?.cli_foto_ont || "",
+        ord_foto_dni: cliente?.cli_foto_dni || "",
+        ord_coordenada: cliente?.cli_coordenada || "",
         id_tec: orden.tec_id
       };
     });

@@ -9,18 +9,24 @@ datasource db {
 }
 
 model cliente {
-  cli_id         String     @id @db.Char(8)
-  cli_nombre     String?    @db.VarChar(250)
-  cli_apellido   String?    @db.VarChar(250)
-  cli_tipo       String     @default("") @db.VarChar(50)
-  cli_razonsoci  String?    @db.VarChar(250)
-  cli_dni        String?    @db.Char(8)
-  cli_ruc        String?    @db.Char(20)
-  cli_direccion  String     @db.VarChar(250)
-  cli_coordenada String     @db.VarChar(250)
-  cli_cel        String     @db.Char(15)
-  cli_estado     String     @default("ACTIVO") @db.VarChar(45)
-  contrato       contrato[]
+  cli_id           String     @id @db.Char(8)
+  cli_nombre       String?    @db.VarChar(250)
+  cli_apellido     String?    @db.VarChar(250)
+  cli_tipo         String     @default("") @db.VarChar(50)
+  cli_razonsoci    String?    @db.VarChar(250)
+  cli_dni          String?    @db.Char(8)
+  cli_ruc          String?    @db.Char(20)
+  cli_direccion    String     @db.VarChar(250)
+  cli_coordenada   String     @db.VarChar(250)
+  cli_cel          String     @db.Char(15)
+  cli_estado       String     @default("ACTIVO") @db.VarChar(45)
+
+  cli_foto_dni     String?    @db.VarChar(255)
+  cli_foto_fachada String?    @db.VarChar(255)
+  cli_foto_nap     String?    @db.VarChar(255)
+  cli_foto_ont     String?    @db.VarChar(255)
+  cli_ppp_user     String?    @db.VarChar(255)
+  contrato         contrato[]
 }
 
 model orden_trabajo {
@@ -280,4 +286,14 @@ model historial_cambios {
   usuario     usuario?  @relation(fields: [id_usuario], references: [usu_id], onDelete: NoAction, onUpdate: NoAction, map: "FK_historial_cambios_usuario")
 
   @@index([id_usuario], map: "FK_historial_cambios_usuario")
+}
+
+model mikrotik_config {
+  id        Int      @id @default(autoincrement())
+  ip        String   @db.VarChar(50)
+  port      Int      @default(8728)
+  usuario   String   @db.VarChar(100)
+  password  String   @db.VarChar(500)
+  estado    Int      @default(1)
+  creado_en DateTime @default(now()) @db.Timestamp(0)
 }

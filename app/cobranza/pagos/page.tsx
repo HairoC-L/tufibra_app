@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Receipt, Search, CheckCircle, Calculator, CreditCard, ArrowLeft, Printer, Plus, ArrowRight
-  , AlertTriangle, User, FileText, Wrench
+  , AlertTriangle, User, FileText, Wrench, Zap
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -129,6 +129,7 @@ interface Client {
   estado: string
   usu_nombre: string
   id_tipo_comprobante: number
+  cli_ppp_user?: string; // Added for Mikrotik activation
 }
 interface Payment {
   id: string
@@ -364,6 +365,7 @@ export default function ClientsPage() {
   const [pagoProcesado, setpagoProcesado] = useState<pagos | null>(null)
 
   const [error, setError] = useState("")
+  const [shouldActivateMikrotik, setShouldActivateMikrotik] = useState(false)
 
   //  const customers = searchCustomers(searchQuery)
   const clientes_filtrados = searchClientes(searchQuery)
@@ -480,9 +482,20 @@ export default function ClientsPage() {
       return
     }
     setError("")
+    
+    // Check if we should activate Mikrotik
+    const hasReconexionDebt = selectedDeudas.some(item => 
+      item.selected && item.deu.descripcion.toUpperCase().includes("RECONEXION")
+    );
+    const hasEligibleService = selectedClient?.serv_nombre.toUpperCase().startsWith("DUO") || 
+                              selectedClient?.serv_nombre.toUpperCase().startsWith("INTERNET") ||
+                              selectedClient?.serv_nombre.toUpperCase().includes("RECONECCION");
+    
+    setShouldActivateMikrotik(hasReconexionDebt && !!hasEligibleService && !!selectedClient?.cli_ppp_user);
+    
     setCurrentStep("payment-details")
   }
-
+ 
 
   async function processPayment(
     num_con: string,
@@ -632,6 +645,27 @@ export default function ClientsPage() {
         // Actualizar estados
         setPagos(data);
         setpagoProcesado(pago_realizado);
+
+        // Activar en Mikrotik si corresponde
+        if (shouldActivateMikrotik && selectedClient?.cli_ppp_user) {
+          try {
+            const actRes = await fetch("/api/mikrotik/activate", {
+              method: "POST",
+              body: JSON.stringify({ pppUser: selectedClient.cli_ppp_user }),
+              headers: { "Content-Type": "application/json" },
+            });
+            const actData = await actRes.json();
+            if (actData.success) {
+              toast.success("Usuario activado en Mikrotik correctamente");
+            } else {
+              toast.warning(`Pago procesado, pero falló la activación en Mikrotik: ${actData.error}`);
+            }
+          } catch (err) {
+            console.error("Error al activar Mikrotik:", err);
+            toast.warning("Pago procesado, pero hubo un error al conectar con Mikrotik");
+          }
+        }
+
         setCurrentStep("confirmation");
       } else {
         setError(result.error || "Error al procesar el pago");
@@ -1209,6 +1243,18 @@ export default function ClientsPage() {
               </Select>
             </div>
           </div>
+
+          {shouldActivateMikrotik && (
+            <Alert className="bg-blue-900/40 border-blue-700 text-blue-100">
+              <Zap className="h-4 w-4 text-blue-400" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>
+                  <strong>Aviso de Activación:</strong> Este usuario será activado automáticamente en Mikrotik al procesar el pago.
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />

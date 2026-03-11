@@ -21,10 +21,14 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, User, Building, UserIcon, MapPinIcon, BriefcaseIcon, PlusCircle, IdCard, Calendar } from "lucide-react"
+import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, User, Building, UserIcon, MapPinIcon, BriefcaseIcon, PlusCircle, IdCard, Calendar, Briefcase } from "lucide-react"
 import Listado_Tecnicos from "@/components/filtrado_tec";
 import { toast } from 'react-toastify';
 import 'leaflet/dist/leaflet.css';
+import { ImageViewer } from "@/components/ImageViewer";
+import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { MikrotikStatusModal } from "@/components/MikrotikStatusModal";
+import { Globe, Wifi as WifiIcon } from "lucide-react"
 
 
 
@@ -60,6 +64,8 @@ type tipo_comprobante = {
 }
 
 
+
+
 interface Client {
   cli_id: string
   cli_tipo: string
@@ -80,6 +86,8 @@ interface Client {
   usu_nombre: string
   id_caja: string
   id_nodo: number
+  cli_foto_fachada: string
+  cli_ppp_user?: string
 }
 
 export default function ClientsPage() {
@@ -99,10 +107,16 @@ export default function ClientsPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
+  const [filterService, setFilterService] = useState("all")
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [isMikrotikModalOpen, setIsMikrotikModalOpen] = useState(false)
 
 
   const [newClient, setNewClient] = useState({
@@ -124,11 +138,16 @@ export default function ClientsPage() {
     coordenada: "",
     id_caja: "",
     tipoComprobante: "",
+    ppp_user: "",
   })
   const [clientType, setClientType] = useState<"natural" | "juridica">("natural");
 
 
   const [id_user, setIdUser] = useState("");
+  const [userRole, setUserRole] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   const cajasFiltradas = cajas.filter(caja => caja.id_nodo === Number(selectedNodo));
 
@@ -177,6 +196,7 @@ export default function ClientsPage() {
   }, [])
 
 
+
   //Carga de tipos de comprobante
   useEffect(() => {
     const fetchTipoComprobante = async () => {
@@ -218,8 +238,55 @@ export default function ClientsPage() {
       client.cli_razonsoci.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.cli_ruc.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = filterStatus === "all" || client.estado === filterStatus
-    return matchesSearch && matchesFilter
+    const matchesService = filterService === "all" || client.serv_nombre === filterService
+    return matchesSearch && matchesFilter && matchesService
   })
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredClients.length / rowsPerPage)
+  const paginatedClients = filteredClients.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  )
+
+  // Automatización de Usuario PPP
+  useEffect(() => {
+    if (!newClient.tipoServicio) return;
+
+    const servicioSeleccionado = servicios.find(s => s.serv_id.toString() === newClient.tipoServicio);
+    if (!servicioSeleccionado) return;
+
+    const servNombre = servicioSeleccionado.serv_nombre.toUpperCase();
+
+    // Si el servicio empieza con CABLE, limpiar el campo ppp_user
+    if (servNombre.startsWith("CABLE")) {
+      setNewClient(prev => ({ ...prev, ppp_user: "" }));
+      return;
+    }
+
+    // Si el servicio empieza con DUO o INTERNET, generar el usuario
+    if (servNombre.startsWith("DUO") || servNombre.startsWith("INTERNET")) {
+      let baseName = "";
+      if (clientType === "natural") {
+        baseName = `${newClient.apellido || ""}${newClient.nombre || ""}`;
+      } else {
+        baseName = newClient.razon_social || "";
+      }
+
+      // Quitar espacios y agregar @201
+      const generatedUser = baseName.replace(/\s/g, "").toUpperCase() + "@201";
+      
+      // Solo actualizar si es diferente para evitar bucles infinitos
+      if (newClient.ppp_user !== generatedUser) {
+        setNewClient(prev => ({ ...prev, ppp_user: generatedUser }));
+      }
+    }
+  }, [newClient.tipoServicio, newClient.nombre, newClient.apellido, newClient.razon_social, clientType, servicios]);
+
+  // Reset to first page when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterStatus, filterService, rowsPerPage])
 
 
   //Carga de clientes y contratos
@@ -258,6 +325,23 @@ export default function ClientsPage() {
         return;
       }
 
+      // Subir foto si se seleccionó una
+      if (selectedFile && data.cliente?.cli_id) {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", selectedFile);
+        uploadFormData.append("cli_id", data.cliente.cli_id);
+
+        try {
+          await fetch("/api/upload", {
+            method: "POST",
+            body: uploadFormData,
+          });
+        } catch (uploadError) {
+          console.error("Error al subir la foto:", uploadError);
+          toast.warning("El cliente se creó, pero hubo un error al subir la foto.");
+        }
+      }
+
       toast.success("Cliente creado correctamente");
       setIsCreateModalOpen(false);
       setNewClient({
@@ -279,14 +363,17 @@ export default function ClientsPage() {
         coordenada: "",
         id_caja: "",
         tipoComprobante: "",
+        ppp_user: "",
       });
       fetchClients();
+      setSelectedFile(null);
       setCurrentStep(1);
     } catch (error) {
       toast.error("Error inesperado al crear el cliente");
       console.error("Error al crear el cliente:", error);
     }
   };
+
 
   useEffect(() => {
     if (selectedClient && selectedClient.id_caja) {
@@ -300,8 +387,11 @@ export default function ClientsPage() {
 
   useEffect(() => {
     const storedId = localStorage.getItem("userId") || "";
+    const storedRole = localStorage.getItem("userRole") || "";
     setIdUser(storedId);
+    setUserRole(storedRole);
   }, []);
+
 
   useEffect(() => {
     if (id_user) {
@@ -383,7 +473,8 @@ export default function ClientsPage() {
               cli_ruc: selectedClient.cli_ruc,
               cli_direccion: selectedClient.cli_direccion,
               cli_coordenada: selectedClient.cli_coordenada,
-              cli_cel: selectedClient.cli_cel
+              cli_cel: selectedClient.cli_cel,
+              cli_ppp_user: selectedClient.cli_ppp_user
             },
             contrato: {
               num_con: selectedClient.num_con,
@@ -391,14 +482,37 @@ export default function ClientsPage() {
               id_caja: parseInt(selectedClient.id_caja),
               estado: parseInt(selectedClient.estado),
             },
+            userRole: userRole,
           }),
         });
 
         if (response.ok) {
           const updated = await response.json();
-          setClients(clients.map((client) => client.cli_id === selectedClient.cli_id ? selectedClient : client));
+
+          // Subir nueva foto si se seleccionó una
+          if (editFile) {
+            const uploadFormData = new FormData();
+            uploadFormData.append("file", editFile);
+            uploadFormData.append("cli_id", selectedClient.cli_id);
+
+            try {
+              const uploadRes = await fetch("/api/upload", {
+                method: "POST",
+                body: uploadFormData,
+              });
+              if (!uploadRes.ok) {
+                toast.warning("El cliente se actualizó, pero hubo un error al subir la foto.");
+              }
+            } catch (uploadError) {
+              console.error("Error al subir la foto en edición:", uploadError);
+              toast.warning("El cliente se actualizó, pero hubo un error al subir la foto.");
+            }
+          }
+
+          setClients((prev) => prev.map((c) => c.cli_id === selectedClient.cli_id ? { ...selectedClient } : c));
           setIsEditModalOpen(false);
           setSelectedClient(null);
+          setEditFile(null);
           fetchClients();
           toast.success("Datos editados correctamente");
         } else {
@@ -422,41 +536,50 @@ export default function ClientsPage() {
     )
       return;
 
-    let map: any;
+    let mapInstance: L.Map | null = null;
 
     const loadMap = async () => {
       const L = await import("leaflet");
 
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-
+      // Fix for default marker icons in Next.js
+      // @ts-ignore
+      delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
       });
 
-      const parts = selectedClient.cli_coordenada.split(",").map(Number);
-      if (parts.length !== 2 || parts.some(isNaN)) return;
+      const coords = selectedClient.cli_coordenada.split(",").map(Number);
+      if (coords.length !== 2 || coords.some(isNaN)) return;
 
-      const coords: [number, number] = [parts[0], parts[1]];
+      const latlng: [number, number] = [coords[0], coords[1]];
 
-      map = L.map("map").setView(coords, 15);
+      // Clear the container if it was already used
+      const container = document.getElementById("view-client-map");
+      if (!container) return;
+      
+      // @ts-ignore - Check if map is already initialized on this element
+      if (container._leaflet_id) return;
+
+      mapInstance = L.map("view-client-map").setView(latlng, 15);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
+      }).addTo(mapInstance);
 
-      L.marker(coords)
-        .addTo(map)
-        .bindPopup(selectedClient.cli_direccion)
+      L.marker(latlng)
+        .addTo(mapInstance)
+        .bindPopup(selectedClient.cli_direccion || "Ubicación")
         .openPopup();
     };
 
     loadMap();
 
     return () => {
-      if (map) {
-        map.remove();
+      if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
       }
     };
   }, [isViewModalOpen, selectedClient]);
@@ -556,7 +679,7 @@ export default function ClientsPage() {
                         Nuevo Cliente
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-4xl">
+                    <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-4xl max-h-[95vh] overflow-y-auto">
                       <DialogHeader className="justify-center items-center">
                         <DialogTitle>Registrar Nuevo Cliente</DialogTitle>
                       </DialogHeader>
@@ -707,10 +830,27 @@ export default function ClientsPage() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="coordenada">Coordenada</Label>
-                              <Input id="coordenada" value={newClient.coordenada || ""} onChange={(e) => setNewClient({ ...newClient, coordenada: e.target.value })} className="bg-gray-700 border-gray-600" />
+                              <div className="flex gap-2">
+                                <Input id="coordenada" value={newClient.coordenada || ""} onChange={(e) => setNewClient({ ...newClient, coordenada: e.target.value })} className="bg-gray-700 border-gray-600 flex-1" />
+                              </div>
+                              <MapLocationPicker 
+                                initialCoords={newClient.coordenada} 
+                                onSelect={(coords) => setNewClient({ ...newClient, coordenada: coords })}
+                                buttonText="Seleccionar en Mapa"
+                              />
                             </div>
                             <Listado_Tecnicos tecnicos={tecnicos} newOrder={newClient} setNewOrder={setNewClient} />
 
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="foto">Foto de Fachada</Label>
+                            <Input
+                              id="foto"
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                              className="bg-gray-700 border-gray-600"
+                            />
                           </div>
 
                         </div>
@@ -765,6 +905,16 @@ export default function ClientsPage() {
                               <Label htmlFor="fechaInicio">Fecha de Inicio</Label>
                               <Input id="fechaInicio" type="date" value={newClient.fechaInicio || ""} onChange={(e) => setNewClient({ ...newClient, fechaInicio: e.target.value })} className="bg-gray-700 border-gray-600" required />
                             </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="new-ppp">Usuario Mikrotik (PPP)</Label>
+                              <Input
+                                id="new-ppp"
+                                placeholder="Ej: ppp-user-01"
+                                value={newClient.ppp_user}
+                                onChange={(e) => setNewClient({ ...newClient, ppp_user: e.target.value })}
+                                className="bg-gray-700 border-gray-600 border-cyan-500/30 text-cyan-50"
+                              />
+                            </div>
                           </div>
 
                         </div>
@@ -804,13 +954,27 @@ export default function ClientsPage() {
                   </div>
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
                     <SelectTrigger className="w-48 bg-gray-700/50 border-gray-600 text-white">
-                      <SelectValue />
+                      <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
                       <SelectItem value="all">Todos los estados</SelectItem>
                       <SelectItem value="1">Activos</SelectItem>
                       <SelectItem value="0">Cortados</SelectItem>
                       <SelectItem value="2">Sin info</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterService} onValueChange={setFilterService}>
+                    <SelectTrigger className="w-64 bg-gray-700/50 border-gray-600 text-white">
+                      <SelectValue placeholder="Servicio" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
+                      <SelectItem value="all">Todos los servicios</SelectItem>
+                      {servicios.map((serv) => (
+                        <SelectItem key={serv.serv_id} value={serv.serv_nombre}>
+                          {serv.serv_nombre}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -828,7 +992,7 @@ export default function ClientsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredClients.map((client) => (
+                      {paginatedClients.map((client) => (
                         <TableRow key={client.cli_id} className="border-gray-700">
                           {/* Cliente */}
                           <TableCell>
@@ -897,6 +1061,18 @@ export default function ClientsPage() {
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedClient(client)
+                                  setIsMikrotikModalOpen(true)
+                                }}
+                                title="Ver Estado Mikrotik"
+                                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                              >
+                                <Globe className="w-4 h-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -904,100 +1080,174 @@ export default function ClientsPage() {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                  <div className="text-sm text-gray-400">
+                    Mostrando {filteredClients.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} a{" "}
+                    {Math.min(currentPage * rowsPerPage, filteredClients.length)} de{" "}
+                    {filteredClients.length} clientes
+                  </div>
+                  
+                  <div className="flex items-center space-x-6">
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm font-medium text-gray-400">Filas por página</p>
+                      <Select
+                        value={rowsPerPage.toString()}
+                        onValueChange={(value) => setRowsPerPage(Number(value))}
+                      >
+                        <SelectTrigger className="h-8 w-[70px] bg-gray-700/50 border-gray-600 text-white">
+                          <SelectValue placeholder={rowsPerPage.toString()} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
+                          {[10, 50, 100].map((pageSize) => (
+                            <SelectItem key={pageSize} value={pageSize.toString()}>
+                              {pageSize}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="bg-gray-700/50 border-gray-600 text-white hover:bg-gray-600"
+                      >
+                        Anterior
+                      </Button>
+                      <div className="flex items-center justify-center text-sm font-medium text-white px-2">
+                        Página {currentPage} de {totalPages || 1}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className="bg-gray-700/50 border-gray-600 text-white hover:bg-gray-600"
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
         {/* Modal de visualización */}
-        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-          <DialogContent className="bg-gray-800 border-gray-700 text-white w-full max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-md">
-            <DialogHeader>
-              <DialogTitle>Perfil del Cliente</DialogTitle>
-              <DialogDescription className="text-gray-400">Información detallada del cliente</DialogDescription>
+        <Dialog open={isViewModalOpen} onOpenChange={isViewModalOpen => {
+          setIsViewModalOpen(isViewModalOpen);
+          if (!isViewModalOpen) setSelectedClient(null);
+        }}>
+          <DialogContent className="bg-gray-800 border-gray-700 text-white w-full max-w-4xl max-h-[95vh] overflow-y-auto rounded-md p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Detalles del Cliente</DialogTitle>
+              <DialogDescription>Visualización de información detallada del cliente</DialogDescription>
             </DialogHeader>
             {selectedClient && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      {selectedClient.cli_tipo === "NATURAL" ? (
-                        <>
-                          <h3 className="text-xl font-semibold text-white">{selectedClient.cli_nombre}</h3>
-                          <h3 className="text-xl font-semibold text-white">{selectedClient.cli_apellido}</h3>
-                        </>
-                      ) : (
-                        <h3 className="text-xl font-semibold text-white">{selectedClient.cli_razonsoci}</h3>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <p className="text-gray-400">{selectedClient.cli_id}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <Badge className={
-                            selectedClient.estado === "1"
-                              ? "bg-green-600"
-                              : selectedClient.estado === "0"
-                                ? "bg-red-600"
-                                : "bg-gray-600"}>
-                            {selectedClient.estado === "1"
-                              ? "Activo"
-                              : selectedClient.estado === "0"
-                                ? "Cortado"
-                                : "Sin info"}
-                          </Badge>
-                        </div>
+              <div className="flex flex-col h-full">
+                {/* Header con gradiente y datos principales */}
+                <div className="p-6 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-500/20 rounded-lg">
+                        <MapPin className="w-5 h-5 text-blue-400" />
                       </div>
-
-                      <p className="text-gray-400">{selectedClient.cli_direccion}</p>
-
+                      <h3 className="text-lg font-medium text-white uppercase tracking-wide">
+                        {selectedClient.cli_direccion}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-500/20 rounded-lg">
+                        <Calendar className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-white uppercase tracking-wide">
+                        Inicio: {selectedClient.fecha_inicio}
+                      </h3>
                     </div>
                   </div>
-                  <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between">
+                  
+                  <div className="mt-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                      <Label className="text-gray-400">Información de Contacto</Label>
-                      <div className="space-y-2 mt-1">
-                        <div className="flex items-center text-white">
-                          <IdCard className="w-4 h-4 mr-2 text-gray-400" />
-                          {selectedClient.cli_tipo === "NATURAL"
-                            ? selectedClient.cli_dni
-                            : selectedClient.cli_ruc}
-                        </div>
-
-                        <div className="flex items-center text-white">
-                          <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                          {selectedClient.cli_cel}
-                        </div>
-                        <div className="flex items-start text-white">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-400 mt-0.5" />
-                          <span className="text-sm">{selectedClient.cli_direccion}</span>
-                        </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`${
+                          selectedClient.estado === "1" ? "bg-green-600" : "bg-red-600"
+                        } text-[10px] font-bold px-2 py-0`}>
+                          {selectedClient.estado === "1" ? "ACTIVO" : "CORTADO"}
+                        </Badge>
+                        <span className="text-xs text-gray-500 uppercase font-mono">ID: {selectedClient.cli_id}</span>
+                      </div>
+                      <h1 className="text-3xl font-black text-white uppercase leading-none">
+                        {selectedClient.cli_tipo === "NATURAL" 
+                          ? `${selectedClient.cli_nombre} ${selectedClient.cli_apellido}`
+                          : selectedClient.cli_razonsoci}
+                      </h1>
+                      <div className="mt-2 flex items-center gap-4 text-sm text-gray-400">
+                        <span className="flex items-center gap-1"><IdCard className="w-4 h-4" /> {selectedClient.cli_dni || selectedClient.cli_ruc}</span>
+                        <span className="flex items-center gap-1"><Phone className="w-4 h-4" /> {selectedClient.cli_cel}</span>
+                        <span className="flex items-center gap-1"><Briefcase className="w-4 h-4" /> {selectedClient.serv_nombre}</span>
+                        {selectedClient.cli_ppp_user && (
+                          <span className="flex items-center gap-1 text-cyan-400 font-bold"><Globe className="w-4 h-4" /> {selectedClient.cli_ppp_user}</span>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <Label className="text-gray-400">Información del Servicio</Label>
-                      <div className="space-y-2 mt-1">
-                        <p className="text-white">{selectedClient.serv_nombre}</p>
-                        <div className="flex items-start text-white">
-                          <Calendar className="w-4 h-4 mr-2 text-gray-400 mt-0.5" />
-                          <span className="text-m">Registro: {selectedClient.fecha_registro}</span>
-                        </div>
-                        <div className="flex items-start text-white">
-                          <Calendar className="w-4 h-4 mr-2 text-gray-400 mt-0.5" />
-                          <span className="text-m">Inicio: {selectedClient.fecha_inicio}</span>
-                        </div>
-                      </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Fecha de Registro</p>
+                      <p className="text-xl font-bold text-white">{selectedClient.fecha_registro}</p>
                     </div>
                   </div>
                 </div>
-                <div className="space-y-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div
-                    id="map"
-                    className="w-full h-48 sm:h-64 rounded-md z-0"
-                  />
+
+                <div className="p-6 space-y-8">
+                  {/* Foto de Fachada */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Foto de Fachada (Click para ampliar)</h3>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-blue-400 hover:text-blue-300 p-0 text-xs h-auto"
+                        onClick={() => setIsEditModalOpen(true)}
+                      >
+                        <Edit className="w-3 h-3 mr-1" /> Editar
+                      </Button>
+                    </div>
+                    <div 
+                      className="relative w-full aspect-video md:aspect-[3/1] bg-white rounded-xl overflow-hidden shadow-2xl group cursor-pointer border-4 border-gray-700/50"
+                      onClick={() => setIsImageViewerOpen(true)}
+                    >
+                      {selectedClient.cli_foto_fachada ? (
+                        <img
+                          src={`/api/foto/${selectedClient.cli_foto_fachada}`}
+                          alt="Fachada"
+                          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 border-2 border-dashed border-gray-700">
+                          <PlusCircle className="w-12 h-12 text-gray-700 mb-2" />
+                          <p className="text-gray-600 font-bold uppercase text-xs">Sin Foto de Fachada</p>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <PlusCircle className="text-white w-12 h-12" />
+                      </div>
+                    </div>
+                  </div>
+
+
+                  {/* Mapa */}
+                  <div className="space-y-4 pt-4 border-t border-gray-700/50 pb-8">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Ubicación en Mapa</h3>
+                    <div
+                      id="view-client-map"
+                      className="w-full aspect-video rounded-xl border border-gray-700 shadow-2xl z-0"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -1005,7 +1255,7 @@ export default function ClientsPage() {
         </Dialog>
         {/* Modal de edición */}
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl">
+          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Cliente</DialogTitle>
               <DialogDescription className="text-gray-400">Modifica la información del cliente</DialogDescription>
@@ -1161,16 +1411,17 @@ export default function ClientsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-coordenada">Coordenada</Label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mb-2">
                       <Input
                         id="edit-coordenada"
                         value={selectedClient.cli_coordenada}
                         onChange={(e) => setSelectedClient({ ...selectedClient, cli_coordenada: e.target.value })}
-                        className="bg-gray-700 border-gray-600"
+                        className="bg-gray-700 border-gray-600 flex-1"
                       />
                       <Button
                         type="button"
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                        variant="secondary"
+                        title="Obtener ubicación GPS"
                         onClick={() => {
                           if (navigator.geolocation) {
                             navigator.geolocation.getCurrentPosition(
@@ -1180,18 +1431,24 @@ export default function ClientsPage() {
                               },
                               (error) => {
                                 console.error("Error al obtener ubicación:", error);
-                                alert("No se pudo obtener la ubicación.");
+                                toast.error("No se pudo obtener la ubicación.");
                               },
                               { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                             );
                           } else {
-                            alert("Geolocalización no disponible.");
+                            toast.error("Geolocalización no disponible.");
                           }
                         }}
                       >
-                        <MapPin></MapPin>
+                        <MapPinIcon className="w-4 h-4" />
                       </Button>
                     </div>
+                    <MapLocationPicker 
+                      initialCoords={selectedClient.cli_coordenada} 
+                      onSelect={(coords) => setSelectedClient({ ...selectedClient, cli_coordenada: coords })}
+                      buttonText="Seleccionar en Mapa"
+                      variant="secondary"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1255,6 +1512,39 @@ export default function ClientsPage() {
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-ppp">Usuario Mikrotik (PPP) {userRole !== 'ADMINISTRADOR' && <span className="text-[10px] text-orange-400 opacity-70 ml-2">(Solo Administrador)</span>}</Label>
+                  <Input
+                    id="edit-ppp"
+                    placeholder="Ej: ppp-user-01"
+                    value={selectedClient.cli_ppp_user || ""}
+                    onChange={(e) => setSelectedClient({ ...selectedClient, cli_ppp_user: e.target.value })}
+                    className="bg-gray-700 border-gray-600 border-cyan-500/30 text-cyan-50"
+                    disabled={userRole !== 'ADMINISTRADOR'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-foto">Actualizar Foto de Fachada</Label>
+                  {selectedClient.cli_foto_fachada && (
+                    <div className="mb-2 relative w-32 h-20 rounded border border-gray-600 overflow-hidden">
+                      <img 
+                        src={`/api/foto/${selectedClient.cli_foto_fachada}`} 
+                        alt="Current" 
+                        className="w-full h-full object-cover opacity-50"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white bg-black/40">
+                        Foto Actual
+                      </div>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-foto"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEditFile(e.target.files?.[0] || null)}
+                    className="bg-gray-700 border-gray-600"
+                  />
+                </div>
               </div>
             )}
             <div className="flex justify-end space-x-2">
@@ -1267,6 +1557,20 @@ export default function ClientsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <ImageViewer 
+          src={selectedClient ? `/api/foto/${selectedClient.cli_foto_fachada}` : ""}
+          alt="Foto de Fachada"
+          isOpen={isImageViewerOpen}
+          onClose={() => setIsImageViewerOpen(false)}
+        />
+
+        <MikrotikStatusModal 
+          isOpen={isMikrotikModalOpen}
+          onClose={() => setIsMikrotikModalOpen(false)}
+          pppUser={selectedClient?.cli_ppp_user || ""}
+          clientName={selectedClient ? (selectedClient.cli_tipo === "JURIDICA" ? selectedClient.cli_razonsoci : `${selectedClient.cli_nombre} ${selectedClient.cli_apellido}`) : ""}
+        />
       </SidebarInset>
     </SidebarProvider>
   )
