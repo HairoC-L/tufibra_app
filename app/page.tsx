@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,23 @@ export default function LoginPage() {
   const router = useRouter()
   const [errorMessage, setErrorMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("/tufibra_logo.webp")
+
+  useEffect(() => {
+    fetchEmpresa()
+  }, [])
+
+  const fetchEmpresa = async () => {
+    try {
+      const res = await fetch("/api/empresa")
+      const data = await res.json()
+      if (data && data.logo_url) {
+        setLogoUrl(`/api/media/${data.logo_url}`)
+      }
+    } catch (error) {
+      console.error("Error fetching empresa info for login:", error)
+    }
+  }
 
 
   const handleLogin = async () => {
@@ -72,20 +89,26 @@ export default function LoginPage() {
         {/* Columna izquierda (Bienvenido y logo) */}
         <div className="hidden lg:flex flex-col items-center justify-center w-1/2 space-y-6 text-white">
           <h1 className="text-5xl text-opacity-80 text-white font-bold fade-down">¡Bienvenido!</h1>
-          <img
-            src="/tufibra_logo.webp"
-            alt="Logo Tufibra"
-            className="w-24 sm:w-28 md:w-32 lg:w-56 xl:w-64 h-auto mx-auto fade-up"
+          <Image
+            src={logoUrl}
+            alt="Logo Empresa"
+            width={256}
+            height={256}
+            priority
+            className="w-24 sm:w-28 md:w-32 lg:w-56 xl:w-64 h-auto mx-auto fade-up object-contain"
           />
         </div>
         {/* Columna/formulario (responsivo centrado) */}
         <Card className="w-full max-w-md bg-slate-800/60 border border-slate-700 rounded-2xl shadow-xl backdrop-blur-md px-6 py-8 space-y-6">
           <div className="text-center space-y-2 lg:hidden">
             <h1 className="text-3xl font-bold text-white text-opacity-80 fade-down">¡Bienvenido!</h1>
-            <img
-              src="/tufibra_logo.webp"
-              alt="Logo Tufibra"
-              className="w-28 sm:w-32 md:w-36 h-auto mx-auto fade-up"
+            <Image
+              src={logoUrl}
+              alt="Logo Empresa"
+              width={144}
+              height={144}
+              priority
+              className="w-28 sm:w-32 md:w-36 h-auto mx-auto fade-up object-contain"
             />
           </div>
           <div className="text-center">

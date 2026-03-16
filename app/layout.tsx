@@ -7,10 +7,27 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Tu Fibra Digital",
-  description: "Sistema para gestionar órdenes de trabajo",
-  generator: 'Hairo'
+export async function generateMetadata(): Promise<Metadata> {
+  let title = "Tu Fibra Digital";
+  let faviconUrl = "/tufibra_logo.webp";
+  
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const empresa = await prisma.empresa.findFirst();
+    if (empresa?.nombre) title = empresa.nombre;
+    if (empresa?.favicon_url) faviconUrl = `/api/media/${empresa.favicon_url}`;
+  } catch (error) {
+    console.error("Error fetching empresa for metadata:", error);
+  }
+
+  return {
+    title,
+    description: "Sistema para gestionar órdenes de trabajo",
+    generator: 'Hairo',
+    icons: {
+      icon: faviconUrl
+    }
+  };
 }
 
 export default function RootLayout({

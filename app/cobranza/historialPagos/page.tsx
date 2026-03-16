@@ -13,7 +13,7 @@ import { useSearchParams } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Receipt, Search, CheckCircle, Calculator, CreditCard, ArrowLeft, Printer, Download, ArrowRight
+  Receipt, Search, CheckCircle, Calculator, CreditCard, ArrowLeft, Printer, ArrowRight
   , AlertTriangle, User
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
@@ -173,6 +173,15 @@ export default function ClientsPage() {
   const [numero, setNumero] = useState("");
   const [selectedTipo, setSelectedTipo] = useState("");
 
+  const [empresaData, setEmpresaData] = useState<{
+    nombre: string,
+    ruc: string,
+    direccion: string,
+    celular: string,
+    frase: string,
+    logo_url: string
+  } | null>(null);
+
 
 
 
@@ -224,7 +233,20 @@ export default function ClientsPage() {
   useEffect(() => {
     fetchClients();
     fetchPagos();
+    fetchEmpresa();
   }, []);
+
+  const fetchEmpresa = async () => {
+    try {
+      const res = await fetch("/api/empresa");
+      const data = await res.json();
+      if (data && data.nombre) {
+        setEmpresaData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching empresa info for ticket:", error);
+    }
+  };
 
   const searchParams = useSearchParams()
   const preselectedCustomerId = searchParams.get("customer")
@@ -373,10 +395,10 @@ export default function ClientsPage() {
             </style>
           </head>
           <body>
-            <div class="center bold">CARMONA LEON LUILLY PAOL</div>
-            <div class="center bold">10434642341</div>
-            <div class="center">A.H. SOL NACIENTE MZ. F LT. 01</div>
-            <div class="center">Telf: 935671661</div>
+            <div class="center bold">${empresaData?.nombre || 'CARMONA LEON LUILLY PAOL'}</div>
+            <div class="center bold">${empresaData?.ruc || '10434642341'}</div>
+            <div class="center">${empresaData?.direccion || 'A.H. SOL NACIENTE MZ. F LT. 01'}</div>
+            <div class="center">Telf: ${empresaData?.celular || '935671661'}</div>
             
             <div class="line"></div>
             <div class="center bold">${tipo_comprobante.toUpperCase()} ELECTRÓNICA</div>
@@ -418,8 +440,13 @@ export default function ClientsPage() {
             <div class="center"><strong>Cajero:</strong> ${cajero}</div>
             <div class="line"></div>
 
+            ${empresaData?.frase ? `<div class="center" style="margin-top: 8px; font-style: italic;">${empresaData.frase}</div>` : ''}
+
             <div class="center" style="margin-top: 8px;">
-              <img src="/logo_impresion.webp" alt="Logo" width="100" />
+              ${empresaData?.logo_url 
+                ? `<img src="/api/media/${empresaData.logo_url}" alt="Logo" width="100" />` 
+                : `<img src="/logo_impresion.webp" alt="Logo" width="100" />`
+              }
             </div>
           </body>
         </html>

@@ -42,12 +42,30 @@ import Image from "next/image"
 export function AppSidebar() {
   const [userRole, setUserRole] = useState("")
   const [username, setUsername] = useState("")
+  const [logoUrl, setLogoUrl] = useState("/tufibra_logo.webp")
   const router = useRouter()
 
   useEffect(() => {
     setUserRole(localStorage.getItem("userRole") || "")
     setUsername(localStorage.getItem("username") || "")
+    fetchEmpresa()
+
+    const handleUpdate = () => fetchEmpresa()
+    window.addEventListener("empresaConfigUpdated", handleUpdate)
+    return () => window.removeEventListener("empresaConfigUpdated", handleUpdate)
   }, [])
+
+  const fetchEmpresa = async () => {
+    try {
+      const res = await fetch("/api/empresa")
+      const data = await res.json()
+      if (data && data.logo_url) {
+        setLogoUrl(`/api/media/${data.logo_url}`)
+      }
+    } catch (error) {
+      console.error("Error fetching empresa info for sidebar:", error)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("userRole")
@@ -176,11 +194,12 @@ export function AppSidebar() {
       <SidebarHeader className="border-b bg-white p-2">
         <div className="flex flex-col items-center space-x-3">
           <Image
-            src="/tufibra_logo.webp"
-            alt="Logo Cable Digital"
+            src={logoUrl}
+            alt="Logo Empresa"
             width={160}
             height={160}
             priority
+            style={{ objectFit: 'contain' }}
           />
         </div>
       </SidebarHeader>

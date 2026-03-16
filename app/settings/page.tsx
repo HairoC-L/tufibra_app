@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from 'react-toastify';
 import { Save, Folder, AlertCircle, Lock, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { EmpresaSettings } from "@/components/EmpresaSettings"
 
 export default function SettingsPage() {
   const [storagePath, setStoragePath] = useState("")
@@ -224,6 +225,8 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+
+            {userRole === "ADMINISTRADOR" && <EmpresaSettings />}
 
             <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-xl">
               <CardHeader>

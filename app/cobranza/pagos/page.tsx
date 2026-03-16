@@ -230,6 +230,15 @@ export default function ClientsPage() {
 
 
   const [showDetalleComprobante, setShowDetalleComprobante] = useState(false);
+  const [empresaData, setEmpresaData] = useState<{
+    nombre: string,
+    ruc: string,
+    direccion: string,
+    celular: string,
+    frase: string,
+    logo_url: string
+  } | null>(null);
+
   const [newPago, setNewPago] = useState({
     id_tipo_compro: "",
     serie: "",
@@ -319,7 +328,20 @@ export default function ClientsPage() {
     fetchDeudas();
     fetchPagos();
     fetchTrabajos();
+    fetchEmpresa();
   }, []);
+
+  const fetchEmpresa = async () => {
+    try {
+      const res = await fetch("/api/empresa");
+      const data = await res.json();
+      if (data && data.nombre) {
+        setEmpresaData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching empresa info for ticket:", error);
+    }
+  };
 
 
   //Carga de tipos de comprobante
@@ -798,10 +820,10 @@ export default function ClientsPage() {
             </style>
           </head>
           <body>
-            <div class="center bold">CARMONA LEON LUILLY PAOL</div>
-            <div class="center bold">10434642341</div>
-            <div class="center">A.H. SOL NACIENTE MZ. F LT. 01</div>
-            <div class="center">Telf: 935671661</div>
+            <div class="center bold">${empresaData?.nombre || 'CARMONA LEON LUILLY PAOL'}</div>
+            <div class="center bold">${empresaData?.ruc || '10434642341'}</div>
+            <div class="center">${empresaData?.direccion || 'A.H. SOL NACIENTE MZ. F LT. 01'}</div>
+            <div class="center">Telf: ${empresaData?.celular || '935671661'}</div>
             
             <div class="line"></div>
             <div class="center bold">${tipo_comprobante.toUpperCase()} ELECTRÓNICA</div>
@@ -843,8 +865,13 @@ export default function ClientsPage() {
             <div class="center"><strong>Cajero:</strong> ${cajero}</div>
             <div class="line"></div>
 
+            ${empresaData?.frase ? `<div class="center" style="margin-top: 8px; font-style: italic;">${empresaData.frase}</div>` : ''}
+
             <div class="center" style="margin-top: 8px;">
-              <img src="/logo_impresion.webp" alt="Logo" width="100" />
+              ${empresaData?.logo_url 
+                ? `<img src="/api/media/${empresaData.logo_url}" alt="Logo" width="100" />` 
+                : `<img src="/logo_impresion.webp" alt="Logo" width="100" />`
+              }
             </div>
           </body>
         </html>

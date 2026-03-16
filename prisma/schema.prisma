@@ -288,6 +288,7 @@ model historial_cambios {
   @@index([id_usuario], map: "FK_historial_cambios_usuario")
 }
 
+
 model mikrotik_config {
   id        Int      @id @default(autoincrement())
   ip        String   @db.VarChar(50)
@@ -297,3 +298,15 @@ model mikrotik_config {
   estado    Int      @default(1)
   creado_en DateTime @default(now()) @db.Timestamp(0)
 }
+
+model empresa {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @db.VarChar(250)
+  ruc         String   @db.VarChar(20)
+  direccion   String   @db.VarChar(250)
+  celular     String   @db.VarChar(20)
+  frase       String   @db.VarChar(250)
+  logo_url    String?  @db.VarChar(250)
+  favicon_url String?  @db.VarChar(250)
+}
+

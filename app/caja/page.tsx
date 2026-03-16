@@ -24,6 +24,27 @@ import { Plus, Search, MinusCircle, Printer, User, Building, UserIcon, MapPinIco
 import { toast } from 'react-toastify';
 import 'leaflet/dist/leaflet.css';
 
+function montoALetras(monto: number): string {
+  const formatter = new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: 2,
+  });
+
+  const [entero, decimal] = formatter.format(monto).replace("S/", "").trim().split(",");
+  const dec = parseInt(decimal || "00");
+
+  return `*** ${entero} CON ${dec < 10 ? '0' + dec : dec}/100 SOLES ***`;
+}
+
+function formatearFechaUTCString(fechaUTC: string): string {
+  const [fecha, hora] = fechaUTC.split("T");
+  const [year, month, day] = fecha.split("-");
+  const horaLimpiada = hora.slice(0, 8); // elimina los milisegundos y la Z
+
+  return `${day}/${month}/${year} ${horaLimpiada}`;
+}
+
 
 type tipo_comprobante = {
   id_tipo: number
@@ -75,6 +96,15 @@ export default function ClientsPage() {
 
   const [deudas, setDeudas] = useState<deuda[]>([])
   const [detallePago, setDetallePago] = useState<detallePago[]>([]);
+
+  const [empresaData, setEmpresaData] = useState<{
+    nombre: string,
+    ruc: string,
+    direccion: string,
+    celular: string,
+    frase: string,
+    logo_url: string
+  } | null>(null);
 
 
   const [serie, setSerie] = useState("");
@@ -130,7 +160,9 @@ export default function ClientsPage() {
 
   useEffect(() => {
     fetchClients();
+    fetchEmpresa();
   }, []);
+  
   const fetchClients = async () => {
     try {
       const res = await fetch("/api/cliente/clienteContrato");
@@ -143,6 +175,18 @@ export default function ClientsPage() {
       setClients(data);
     } catch (err) {
       console.error("Error parsing JSON:", err);
+    }
+  };
+
+  const fetchEmpresa = async () => {
+    try {
+      const res = await fetch("/api/empresa");
+      const data = await res.json();
+      if (data && data.nombre) {
+        setEmpresaData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching empresa info for ticket:", error);
     }
   };
   useEffect(() => {
@@ -235,6 +279,11 @@ export default function ClientsPage() {
       }
 
       toast.success("Pago registrado correctamente");
+
+      if (data.comprobante) {
+        await handlePrintReceipt(data.comprobante.cod_comprobante);
+      }
+
       setOpenModal(false);
       setSelectedTipo("");
       setShowDetalleComprobante(false);
@@ -254,6 +303,151 @@ export default function ClientsPage() {
     }
   };
 
+  const handlePrintReceipt = async (cod_comprobante_rein: string) => {
+    try {
+      const res = await fetch(`/api/caja/impresion?cod_comprobante=${cod_comprobante_rein}`);
+      const data = await res.json();
+
+      if (!data || data.message) {
+        toast.error("Error al obtener los datos del comprobante para imprimir");
+        return;
+      }
+
+      const {
+        cod_comprobante,
+        fecha_emision,
+        monto_total,
+        cliente,
+        detalles_pago,
+        medio_pago,
+        cajero,
+        tipo_comprobante,
+      } = data;
+
+      const isNatural = cliente.cli_tipo === "NATURAL";
+      const nombreCliente = isNatural
+        ? `${cliente.cli_nombre || ""} ${cliente.cli_apellido || ""}`.trim()
+        : cliente.cli_razonsoci;
+      const documento = isNatural ? cliente.cli_dni : cliente.cli_ruc;
+
+      const fechaFormateada = formatearFechaUTCString(data.fecha_emision);
+
+      const printWindow = window.open('', '', 'width=400,height=600');
+
+      if (printWindow) {
+        printWindow.document.write(`
+        <html>
+          <head>
+            <title>Comprobante</title>
+            <style>
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
+              body {
+                font-family: Arial, sans-serif;
+                width: 80mm;
+                margin: 0;
+                padding: 5px;
+                font-size: 14px;
+              }
+              .center {
+                text-align: center;
+              }
+              .bold {
+                font-weight: bold;
+              }
+              .section {
+                margin: 8px 0;
+              }
+              .table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+              }
+              .table th, .table td {
+                text-align: left;
+                padding: 3px 0;
+              }
+              .line {
+                border-top: 1px dashed #000;
+                margin: 5px 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="center bold">${empresaData?.nombre || 'CARMONA LEON LUILLY PAOL'}</div>
+            <div class="center bold">${empresaData?.ruc || '10434642341'}</div>
+            <div class="center">${empresaData?.direccion || 'A.H. SOL NACIENTE MZ. F LT. 01'}</div>
+            <div class="center">Telf: ${empresaData?.celular || '935671661'}</div>
+            
+            <div class="line"></div>
+            <div class="center bold">${tipo_comprobante.toUpperCase()} ELECTRÓNICA</div>
+            <div class="center bold">${cod_comprobante}</div>
+            <div class="center">${fechaFormateada}</div>
+            <div class="line"></div>
+            <div><strong>Cód. Abonado:</strong> ${cliente.cli_id}</div>
+            <div><strong>${isNatural ? 'DNI' : 'RUC'}:</strong> ${documento}</div>
+            <div><strong>Cliente:</strong> ${nombreCliente}</div>
+            <div><strong>Dirección:</strong> ${cliente.cli_direccion}</div>
+            <div><strong>Medio de Pago:</strong> ${(data.medio_pago).toUpperCase()}</div>
+            <div class="line"></div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Cant.</th>
+                  <th style="text-align: left;">Descripción</th>
+                  <th style="text-align: right;">Importe</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detalles_pago.map((item: { descripcion: string; monto: number; descuento?: number }) => `
+                  <tr>
+                    <td>01</td>
+                    <td>
+                      ${item.descripcion}
+                      ${item.descuento && Number(item.descuento) > 0 ? `<br/><span style="font-size: 11px; font-style: italic;">(Desc: S/ ${Number(item.descuento).toFixed(2)})</span>` : ''}
+                    </td>
+                    <td style="text-align: right;">S/. ${Number(item.monto).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="line"></div>
+            <div style="text-align: right; font-weight: bold; margin-top: 5px;">
+              Total: S/. ${Number(monto_total).toFixed(2)}
+            </div>
+            <div><strong>Son:</strong> ${montoALetras(Number(monto_total))}</div>
+            <div class="center"><strong>Cajero:</strong> ${cajero}</div>
+            <div class="line"></div>
+
+            ${empresaData?.frase ? `<div class="center" style="margin-top: 8px; font-style: italic;">${empresaData.frase}</div>` : ''}
+
+            <div class="center" style="margin-top: 8px;">
+              ${empresaData?.logo_url 
+                ? `<img src="/api/media/${empresaData.logo_url}" alt="Logo" width="100" />` 
+                : `<img src="/logo_impresion.webp" alt="Logo" width="100" />`
+              }
+            </div>
+          </body>
+        </html>
+      `);
+
+        printWindow.document.close();
+        printWindow.focus();
+
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      } else {
+        toast.error("No se pudo abrir la ventana de impresión.");
+      }
+    } catch (error) {
+      console.error("Error al imprimir:", error);
+      toast.error("Error al imprimir el comprobante.");
+    }
+  };
 
   const handleSelectTipo = async (id: string) => {
     const clienteTipo = selectedClient?.id_tipo_comprobante?.toString(); // si solo usas un cliente
